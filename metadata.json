@@ -1,0 +1,10 @@
+{
+  "name": "SD INPRES 2 ULATAN",
+  "description": "Sistem Absensi QR Code Siswa dengan Dashboard, Pemindai Kamera Interaktif, Data Siswa & Kartu Digital, serta Laporan PDF & Sinkronisasi Cloud",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
