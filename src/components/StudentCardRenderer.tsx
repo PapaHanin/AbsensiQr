@@ -1,10 +1,7 @@
 import React from 'react';
-import { Student, SystemSettings } from '../types';
-import {
-  CardCustomizationOptions,
-  CARD_COLORS,
-  CARD_FONTS,
-} from '../utils/cardCustomization';
+import { CardTemplateId, Student, SystemSettings } from '../types';
+import { CardCustomizationOptions } from '../utils/cardCustomization';
+import { TutWuriHandayaniLogo } from './TutWuriHandayaniLogo';
 
 interface StudentCardRendererProps {
   student: Student;
@@ -27,291 +24,250 @@ export const StudentCardRenderer: React.FC<StudentCardRendererProps> = ({
   onToggleSelect,
   showCheckbox = false,
 }) => {
-  const colorDef = CARD_COLORS[options.color] || CARD_COLORS.blue;
-  const fontDef = CARD_FONTS[options.font] || CARD_FONTS.sans;
-  const theme = options.theme || 'wave';
+  const rawTpl = options.templateId || settings.defaultCardTemplate || 'navy_gold';
+  let activeTemplate: CardTemplateId = rawTpl;
+  if (rawTpl === 'seraphic') activeTemplate = 'navy_gold';
+  if (rawTpl === 'nusantara') activeTemplate = 'emerald_gold';
+  if (rawTpl === 'pelita') activeTemplate = 'modern_minimalis';
 
   const photoSrc = photoUrl || student.photo || student.avatarUrl;
+  const finalSchoolName = (settings.schoolName || 'SD INPRES 2 ULATAN').toUpperCase();
+  const schoolCity = settings.schoolCity || 'Paser';
+  const schoolRegency = settings.schoolRegency || (settings.schoolCity ? `PEMERINTAH KABUPATEN ${settings.schoolCity.toUpperCase()}` : 'PEMERINTAH KABUPATEN PASER');
+  const schoolDepartment = settings.schoolDepartment || 'DINAS PENDIDIKAN DAN KEBUDAYAAN';
+  const cardTitle = settings.cardTitle || 'KARTU TANDA SISWA & PRESENSI DIGITAL';
+  const cardValidityText = settings.cardValidityText || 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA';
+  const headmasterName = settings.headmasterName || 'Drs. H. Mulyadi, M.Pd';
+  const rawNip = settings.headmasterNip || '19680512 199403 1 005';
+  const headmasterNip = rawNip.startsWith('NIP') ? rawNip : `NIP. ${rawNip}`;
+  const academicYear = settings.academicYear || '2025/2026';
+
+  const isEmerald = activeTemplate === 'emerald_gold';
+  const isModern = activeTemplate === 'modern_minimalis';
+
+  const headerBgClass = isEmerald ? 'bg-[#064e3b]' : isModern ? 'bg-[#1e293b]' : 'bg-[#0f2b5c]';
+  const accentBorderColor = isEmerald ? '#d97706' : isModern ? '#2563eb' : '#c59b27';
+  const accentTextClass = isEmerald ? 'text-amber-400' : isModern ? 'text-blue-400' : 'text-[#c59b27]';
+  const primaryTextClass = isEmerald ? 'text-[#064e3b]' : isModern ? 'text-slate-900' : 'text-[#0f2b5c]';
+  const logoVariant: 'blue_gold' | 'green_gold' | 'official' = isEmerald ? 'green_gold' : isModern ? 'official' : 'blue_gold';
 
   return (
     <div
-      className={`card-item bg-white text-slate-900 border border-slate-200 rounded-3xl shadow-md relative overflow-hidden transition-all select-none ${fontDef.tailwindClass}`}
-      style={{ minHeight: '190px' }}
+      id={`student-card-${student.id}`}
+      className="card-item relative bg-white border border-slate-300 shadow-md transition-all select-none mx-auto overflow-hidden flex flex-col justify-between"
+      style={{
+        width: '276px',
+        minHeight: '438px',
+        maxHeight: '438px',
+        aspectRatio: '53.98 / 85.6',
+        borderRadius: '14px',
+      }}
     >
-      {/* 1. Theme-Specific Background Accents */}
-      {theme === 'wave' && (
-        <>
-          {/* Top-Left Topographic Wave Accent */}
-          <div className="absolute top-0 left-0 w-32 h-28 pointer-events-none z-0 overflow-hidden">
-            <svg className="w-full h-full opacity-90" viewBox="0 0 120 100" fill="none">
-              <path d="M-10 -10 C30 -5, 60 20, 50 65 C45 85, 20 95, -10 100 Z" fill={colorDef.primary} />
-              <path d="M-10 -10 C20 0, 45 15, 38 50 C32 70, 10 80, -10 85 Z" fill={colorDef.secondary} />
-              <path d="M-10 -10 C10 5, 25 12, 22 35 C18 50, 0 60, -10 65 Z" fill={colorDef.light} />
-              <path d="M-5 25 C15 35, 45 30, 65 15" stroke={colorDef.light} strokeWidth="1" fill="none" opacity="0.6" />
-              <path d="M-5 45 C20 55, 55 45, 75 25" stroke={colorDef.light} strokeWidth="1" fill="none" opacity="0.5" />
-            </svg>
-          </div>
-
-          {/* Top-Right Topographic Wave Accent */}
-          <div className="absolute top-0 right-0 w-32 h-28 pointer-events-none z-0 overflow-hidden">
-            <svg className="w-full h-full opacity-90" viewBox="0 0 120 100" fill="none">
-              <path d="M130 -10 C90 -5, 60 20, 70 65 C75 85, 100 95, 130 100 Z" fill={colorDef.primary} />
-              <path d="M130 -10 C100 0, 75 15, 82 50 C88 70, 110 80, 130 85 Z" fill={colorDef.secondary} />
-              <path d="M130 -10 C110 5, 95 12, 98 35 C102 50, 120 60, 130 65 Z" fill={colorDef.light} />
-              <path d="M125 25 C105 35, 75 30, 55 15" stroke={colorDef.light} strokeWidth="1" fill="none" opacity="0.6" />
-            </svg>
-          </div>
-
-          {/* Bottom-Left Wave Accent */}
-          <div className="absolute bottom-0 left-0 w-36 h-24 pointer-events-none z-0 overflow-hidden">
-            <svg className="w-full h-full opacity-90" viewBox="0 0 140 90" fill="none">
-              <path d="M-10 100 C35 95, 65 75, 55 35 C50 15, 20 5, -10 0 Z" fill={colorDef.primary} />
-              <path d="M-10 100 C20 90, 45 75, 40 50 C35 30, 10 20, -10 15 Z" fill={colorDef.secondary} />
-              <path d="M-5 65 C25 55, 75 60, 105 85" stroke={colorDef.light} strokeWidth="1" fill="none" opacity="0.6" />
-            </svg>
-          </div>
-        </>
-      )}
-
-      {theme === 'geometric' && (
-        <>
-          {/* Top-Left Polygon & Tech Cyber Accent */}
-          <div className="absolute top-0 left-0 w-28 h-28 pointer-events-none z-0">
-            <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-              <polygon points="0,0 70,0 0,70" fill={colorDef.primary} />
-              <polygon points="0,0 45,0 0,45" fill={colorDef.secondary} />
-              <polygon points="0,0 20,0 0,20" fill={colorDef.light} />
-              <circle cx="78" cy="12" r="3" fill={colorDef.secondary} />
-              <circle cx="90" cy="12" r="2" fill={colorDef.light} />
-            </svg>
-          </div>
-
-          {/* Top-Right Polygon */}
-          <div className="absolute top-0 right-0 w-28 h-28 pointer-events-none z-0">
-            <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-              <polygon points="100,0 30,0 100,70" fill={colorDef.primary} />
-              <polygon points="100,0 55,0 100,45" fill={colorDef.secondary} />
-              <polygon points="100,0 80,0 100,20" fill={colorDef.light} />
-            </svg>
-          </div>
-
-          {/* Bottom Modern Tech Bar */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-2 pointer-events-none z-0"
-            style={{ backgroundColor: colorDef.primary }}
-          />
-          <div
-            className="absolute bottom-2 left-6 right-6 h-0.5 pointer-events-none z-0"
-            style={{ backgroundColor: colorDef.secondary }}
-          />
-        </>
-      )}
-
-      {theme === 'classic' && (
-        <>
-          {/* Dual Ornamental Borders */}
-          <div
-            className="absolute inset-1.5 rounded-2xl border-2 pointer-events-none z-0"
-            style={{ borderColor: colorDef.primary }}
-          />
-          <div
-            className="absolute inset-2.5 rounded-xl border pointer-events-none z-0"
-            style={{ borderColor: colorDef.light }}
-          />
-
-          {/* Gold / Royal Ribbon Bar Top */}
-          <div className="absolute top-1 left-12 right-12 flex items-center justify-center pointer-events-none z-0">
-            <div
-              className="h-1.5 w-full rounded-full"
-              style={{ backgroundColor: colorDef.primary }}
-            />
-          </div>
-
-          {/* Gold / Royal Ribbon Bar Bottom */}
-          <div className="absolute bottom-1.5 left-12 right-12 flex items-center justify-center pointer-events-none z-0">
-            <div
-              className="h-1.5 w-full rounded-full"
-              style={{ backgroundColor: colorDef.primary }}
-            />
-          </div>
-        </>
-      )}
-
-      {theme === 'minimalist' && (
-        <>
-          {/* Vertical Color Pillar on Left */}
-          <div
-            className="absolute top-0 bottom-0 left-0 w-3 pointer-events-none z-0"
-            style={{ backgroundColor: colorDef.primary }}
-          />
-          <div
-            className="absolute top-0 bottom-0 left-3 w-1 pointer-events-none z-0"
-            style={{ backgroundColor: colorDef.secondary }}
-          />
-          {/* Top Thin Divider */}
-          <div
-            className="absolute top-0 left-6 right-6 h-0.5 pointer-events-none z-0"
-            style={{ backgroundColor: colorDef.light }}
-          />
-        </>
-      )}
-
       {/* Checkbox Selector for toggling on-screen (Non-Printable) */}
       {showCheckbox && onToggleSelect && (
         <button
           type="button"
           onClick={onToggleSelect}
-          className="absolute top-2.5 right-2.5 z-30 w-6 h-6 rounded-lg bg-white/95 border border-slate-300 flex items-center justify-center text-xs cursor-pointer shadow-md no-print hover:bg-white transition-transform active:scale-95"
+          className="absolute top-2.5 right-2.5 z-40 w-6 h-6 rounded-lg bg-white/95 border border-slate-300 flex items-center justify-center text-xs cursor-pointer shadow-md no-print hover:bg-white transition-transform active:scale-95"
           title={isSelected ? 'Batalkan cetak siswa ini' : 'Pilih siswa ini'}
         >
-          {isSelected && (
-            <i
-              className="fa-solid fa-check font-black"
-              style={{ color: colorDef.primary }}
-            ></i>
-          )}
+          {isSelected && <i className="fa-solid fa-check font-black text-emerald-600"></i>}
         </button>
       )}
 
-      {/* Card Body Content (Relative z-10 for layered depth) */}
-      <div className={`relative z-10 p-3 sm:p-4 ${theme === 'minimalist' ? 'pl-6 sm:pl-7' : ''}`}>
-        {/* Header: School Emblem + Authenticity Seal + School Name + Subtitle */}
-        <div className="flex flex-col items-center text-center pb-2">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            {/* School Logo Vector */}
-            <div
-              className="w-7 h-7 flex items-center justify-center"
-              style={{ color: colorDef.border }}
-            >
-              <svg className="w-6 h-6 drop-shadow-xs" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3L2 8.5L12 14L20.5 9.3V16H22.5V8.5L12 3ZM5 12.18V16.5C5 19.5 8.13 22 12 22C15.87 22 19 19.5 19 16.5V12.18L12 16L5 12.18Z" />
-              </svg>
-            </div>
-
-            {/* Authenticity Seal Hologram */}
-            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-300 via-emerald-400 to-indigo-500 p-0.5 shadow-xs flex items-center justify-center rotate-3">
-              <div className="w-full h-full rounded-xs bg-gradient-to-tr from-amber-200/90 via-teal-300/80 to-purple-300/90 flex items-center justify-center">
-                <i className="fa-solid fa-certificate text-[9px] text-amber-900/70"></i>
-              </div>
-            </div>
-          </div>
-
-          <h4
-            className="font-black text-xs sm:text-sm tracking-wide uppercase max-w-[280px] leading-tight"
-            style={{ color: colorDef.border }}
-          >
-            {settings.schoolName}
-          </h4>
-          <p className="text-[8px] sm:text-[9px] text-slate-600 font-bold uppercase tracking-wider mt-0.5">
-            KARTU PRESENSI QR RESMI PELAJAR
-          </p>
+      {/* Top Lanyard Slot Guide */}
+      <div className="flex justify-center pt-1.5 pb-1 bg-slate-100/70 border-b border-slate-200">
+        <div className="w-14 h-2 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center">
+          <div className="w-8 h-1 rounded-full bg-slate-300"></div>
         </div>
+      </div>
 
-        {/* Card Main Columns (Left Info + Pill, Middle Pasfoto, Right QR) */}
-        <div className="flex items-center justify-between gap-2.5 pt-1">
-          {/* 1. Student Details Left */}
-          <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
-            <div>
-              <span className="text-[10px] text-slate-500 font-semibold block">Nama:</span>
-              <h5 className="font-black text-xs sm:text-sm text-slate-950 uppercase tracking-tight leading-tight truncate">
-                {student.name}
-              </h5>
-
-              <div className="mt-1 space-y-0.5 text-[11px] font-bold text-slate-800">
-                <div>
-                  <span className="text-slate-500 font-medium">NIS: </span>
-                  <span className="font-mono text-slate-900">{student.nis}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-medium">Kelas: </span>
-                  <span>
-                    {student.classRoom} {student.gender === 'Laki-laki' ? 'L' : 'P'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom-left Pill: PINDAI SAAT PRESENSI */}
-            <div className="mt-2.5">
-              <span
-                className="inline-flex items-center px-2.5 py-0.8 rounded-full bg-white border-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wider shadow-xs"
-                style={{
-                  borderColor: colorDef.border,
-                  color: colorDef.border,
-                }}
-              >
-                PINDAI SAAT PRESENSI
-              </span>
-            </div>
+      {/* Card Header: Official Indonesian School Banner */}
+      <div
+        className={`${headerBgClass} text-white px-3 py-2.5 relative border-b-2 shadow-sm`}
+        style={{ borderColor: accentBorderColor }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="shrink-0 p-0.5 bg-white/10 rounded-full border border-white/20">
+            <TutWuriHandayaniLogo size={32} variant={logoVariant} />
           </div>
-
-          {/* 2. Middle: Pasfoto with Themed Border */}
-          <div className="shrink-0 flex flex-col items-center">
-            <div
-              className="p-0.5 rounded-xl border-2 bg-white shadow-xs"
-              style={{ borderColor: colorDef.photoBorder }}
-            >
-              <div
-                className="w-14 sm:w-16 h-18 sm:h-20 rounded-lg overflow-hidden border bg-slate-100 flex items-center justify-center relative"
-                style={{ borderColor: colorDef.light }}
-              >
-                {photoSrc ? (
-                  <img
-                    src={photoSrc}
-                    alt={student.name}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100 text-center p-1">
-                    <i className="fa-solid fa-user text-xl text-slate-400 mb-0.5"></i>
-                    <span className="text-[7.5px] font-bold text-slate-500">FOTO</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mt-1">
-              PASFOTO
+          <div className="leading-tight min-w-0 flex-1">
+            <span className="text-[7.5px] font-semibold text-slate-200 uppercase tracking-wide block truncate">
+              {schoolRegency}
+            </span>
+            <span className={`text-[8px] font-bold ${accentTextClass} uppercase tracking-wider block truncate`}>
+              {schoolDepartment}
+            </span>
+            <h4 className="font-black text-[11px] tracking-wide text-white uppercase truncate leading-tight mt-0.5">
+              {finalSchoolName}
+            </h4>
+            <span className="text-[7.5px] font-bold text-amber-300/90 uppercase tracking-tight block truncate">
+              {cardTitle}
             </span>
           </div>
+        </div>
+      </div>
 
-          {/* 3. Right: QR Code Box + Scan Instruction */}
-          <div className="shrink-0 flex flex-col items-center">
+      {/* Card Body: Student Photo & Official Biodata */}
+      <div className="px-3 pt-2 pb-1 flex-1 flex flex-col justify-between">
+        {/* Upper Info Row */}
+        <div className="flex gap-2.5 items-start">
+          {/* Passport Photo 3:4 */}
+          <div className="shrink-0">
             <div
-              className="p-1 rounded-xl border-2 bg-white shadow-xs flex items-center justify-center"
-              style={{ borderColor: colorDef.photoBorder }}
+              className="w-[84px] h-[106px] rounded-lg overflow-hidden bg-slate-50 border-2 flex items-center justify-center shadow-sm relative"
+              style={{ borderColor: accentBorderColor }}
             >
-              {qrUrl ? (
+              {photoSrc ? (
                 <img
-                  src={qrUrl}
-                  alt={`QR Code ${student.name}`}
-                  className="w-16 h-16 sm:w-18 sm:h-18 rounded-md bg-white p-0.5"
+                  src={photoSrc}
+                  alt={student.name}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
                 />
               ) : (
-                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-md bg-slate-100 flex items-center justify-center text-[9px] text-slate-400">
-                  Memuat QR...
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400 p-2 text-center">
+                  <i className="fa-solid fa-user text-2xl text-slate-400 mb-1"></i>
+                  <span className="text-[7.5px] font-bold text-slate-500 uppercase">PASFOTO</span>
+                  <span className="text-[6.5px] text-slate-400">3 x 4 cm</span>
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex items-center justify-center gap-1 mt-1 text-slate-800">
-              <i className="fa-solid fa-mobile-screen-button text-[9px] text-slate-700"></i>
-              <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-tight text-slate-800">
-                SCAN UNTUK PRESENSI
+          {/* Structured Biodata Table */}
+          <div className="flex-1 min-w-0 text-left">
+            <div className="border-b border-slate-200 pb-1 mb-1">
+              <span className="text-[7px] font-bold text-slate-400 tracking-wider uppercase block">
+                NAMA SISWA
+              </span>
+              <h5 className={`font-black text-[10.5px] ${primaryTextClass} uppercase leading-tight line-clamp-2 tracking-tight`}>
+                {student.name}
+              </h5>
+            </div>
+
+            <div className="space-y-0.5 text-[8.5px]">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium text-[8px]">NIS / NISN</span>
+                <span className="font-mono font-bold text-slate-800 text-[8.5px] truncate max-w-[115px]" title={`${student.nis}${student.nisn ? ` / ${student.nisn}` : ''}`}>
+                  {student.nis}{student.nisn ? ` / ${student.nisn}` : ''}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium text-[8px]">Kelas</span>
+                <span className="font-black text-slate-900 text-[8.5px]">{student.classRoom}</span>
+              </div>
+              {(student.birthPlace || student.birthDate) && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium text-[8px]">TTL</span>
+                  <span className="font-semibold text-slate-800 text-[8px] truncate max-w-[110px]" title={[student.birthPlace, student.birthDate].filter(Boolean).join(', ')}>
+                    {[student.birthPlace, student.birthDate].filter(Boolean).join(', ')}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium text-[8px]">Gender</span>
+                <span className="font-semibold text-slate-700 text-[8px]">{student.gender || 'Laki-laki'}</span>
+              </div>
+              {student.address && (
+                <div className="flex items-start justify-between gap-1">
+                  <span className="text-slate-500 font-medium text-[8px] shrink-0">Alamat</span>
+                  <span className="font-medium text-slate-700 text-[7.5px] text-right truncate max-w-[105px]" title={student.address}>
+                    {student.address}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-slate-500 font-medium text-[8px]">Status</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[7.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1 h-1 rounded-full bg-emerald-500 mr-1"></span>
+                  Siswa Aktif
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Subtle Horizontal Divider */}
+        <div className="my-1.5 border-t border-dashed border-slate-200"></div>
+
+        {/* Lower Row: QR Code & Headmaster Signature / Seal */}
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          {/* QR Code Container */}
+          <div className="flex flex-col items-center shrink-0">
+            <div className="p-1 bg-white rounded-lg border border-slate-300 shadow-xs">
+              {qrUrl ? (
+                <img src={qrUrl} alt={`QR ${student.name}`} className="w-[64px] h-[64px] rounded" />
+              ) : (
+                <div className="w-[64px] h-[64px] bg-slate-100 flex items-center justify-center text-[8px] text-slate-400">
+                  QR Siswa
+                </div>
+              )}
+            </div>
+            <span className="text-[7px] font-extrabold text-slate-600 tracking-wider uppercase mt-0.5">
+              PINDAI PRESENSI
+            </span>
+          </div>
+
+          {/* Pengesahan Kepala Sekolah & Cap Dinas */}
+          <div className="flex-1 text-center relative py-0.5 pl-1">
+            <p className="text-[7.5px] text-slate-500 font-medium truncate">
+              {schoolCity}, {academicYear}
+            </p>
+            <p className="text-[8px] font-bold text-slate-800 leading-tight">
+              Kepala Sekolah,
+            </p>
+
+            {/* Signature & Watermark Container */}
+            <div className="relative h-9 flex items-center justify-center my-0.5">
+              {/* Circular Official Rubber Stamp (Disdikbud Blue) */}
+              <div
+                className="absolute inset-0 m-auto w-10 h-10 rounded-full border-2 border-dashed border-blue-600/70 flex flex-col items-center justify-center text-blue-700/80 pointer-events-none rotate-[-12deg]"
+                style={{
+                  background: 'radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 80%)',
+                }}
+              >
+                <span className="text-[5.5px] font-black tracking-tighter">★ RESMI ★</span>
+                <span className="text-[6px] font-black tracking-widest truncate max-w-[34px]">{schoolCity.slice(0, 6).toUpperCase()}</span>
+                <span className="text-[5px] font-bold">DISDIK</span>
+              </div>
+
+              {/* Digital Signature Cursive SVG */}
+              <svg className="w-24 h-7 text-blue-900 z-10" viewBox="0 0 100 40" fill="none">
+                <path
+                  d="M10 28 C20 10, 25 35, 38 12 C45 32, 55 15, 68 25 C78 20, 85 28, 92 18 M15 32 L88 30"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            {/* Underlined Headmaster Name & NIP */}
+            <div className="leading-tight">
+              <span className="text-[8.5px] font-black text-slate-900 uppercase underline decoration-slate-800 tracking-tight block truncate" title={headmasterName}>
+                {headmasterName}
+              </span>
+              <span className="text-[7px] text-slate-500 font-mono block truncate" title={headmasterNip}>
+                {headmasterNip}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Visual Cutting Guide Line (Non-Printable) */}
-      <div className="border-b-2 border-dashed border-slate-300 relative no-print">
-        <span className="absolute right-2 -bottom-2.5 bg-white px-1 text-[8px] text-slate-400 flex items-center gap-0.5">
-          <i className="fa-solid fa-scissors"></i> Gunting di sini
-        </span>
+      {/* Card Footer Ribbon */}
+      <div
+        className={`${headerBgClass} text-white py-1 px-2 text-center border-t`}
+        style={{ borderColor: accentBorderColor }}
+      >
+        <p className="text-[7px] font-bold tracking-wider text-slate-100 uppercase truncate">
+          {cardValidityText}
+        </p>
       </div>
     </div>
   );

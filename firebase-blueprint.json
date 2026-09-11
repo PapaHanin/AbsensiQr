@@ -38,6 +38,10 @@
         "parentPhone": { "type": "string", "description": "Nomor WhatsApp orang tua" },
         "avatarUrl": { "type": "string", "description": "URL avatar siswa" },
         "photo": { "type": "string", "description": "Foto profil siswa" },
+        "nisn": { "type": "string", "description": "Nomor Induk Siswa Nasional (NISN)" },
+        "birthPlace": { "type": "string", "description": "Tempat Lahir siswa" },
+        "birthDate": { "type": "string", "description": "Tanggal Lahir siswa (YYYY-MM-DD)" },
+        "address": { "type": "string", "description": "Alamat tempat tinggal siswa" },
         "createdAt": { "type": "string", "description": "Waktu pembuatan data" }
       },
       "required": ["id", "nis", "name", "classRoom", "gender"]
@@ -90,7 +94,11 @@
         "academicYear": { "type": "string", "description": "Tahun ajaran" },
         "headmasterName": { "type": "string", "description": "Nama kepala sekolah" },
         "headmasterNip": { "type": "string", "description": "NIP kepala sekolah" },
-        "schoolCity": { "type": "string", "description": "Kota sekolah" }
+        "schoolCity": { "type": "string", "description": "Kota sekolah" },
+        "schoolRegency": { "type": "string", "description": "Pemerintah Kabupaten / Kota (Kop Kartu)" },
+        "schoolDepartment": { "type": "string", "description": "Dinas Pendidikan (Kop Kartu)" },
+        "cardTitle": { "type": "string", "description": "Judul kartu siswa" },
+        "cardValidityText": { "type": "string", "description": "Teks masa berlaku kartu" }
       },
       "required": ["lateCutoffTime", "schoolName", "schoolAddress", "academicYear"]
     },

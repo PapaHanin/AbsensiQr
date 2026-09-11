@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { Student, AttendanceRecord, SystemSettings, Teacher } from '../types';
+import { Student, AttendanceRecord, SystemSettings, Teacher, School } from '../types';
 import { saveToCloudSync, fetchFromCloudSync, generateSyncCode } from '../utils/cloudSync';
 import { exportFullBackupJSON } from '../utils/backup';
 import { googleSignIn, googleLogout, initAuth } from '../utils/googleAuth';
@@ -12,11 +12,13 @@ interface CloudSyncModalProps {
   attendanceRecords: AttendanceRecord[];
   settings: SystemSettings;
   teachers: Teacher[];
+  schools?: School[];
   onRestoreData: (restored: {
     students: Student[];
     attendanceRecords: AttendanceRecord[];
     settings: SystemSettings;
     teachers: Teacher[];
+    schools?: School[];
   }) => void;
   onClose: () => void;
   onShowToast: (title: string, message: string, type: 'success' | 'warning' | 'error' | 'info') => void;
@@ -27,6 +29,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   attendanceRecords,
   settings,
   teachers,
+  schools,
   onRestoreData,
   onClose,
   onShowToast,
@@ -243,6 +246,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               attendanceRecords: json.attendanceRecords,
               settings: json.settings || settings,
               teachers: json.teachers || teachers,
+              schools: json.schools || undefined,
             });
             onShowToast(
               'Restorasi File Berhasil',
@@ -505,7 +509,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
             <button
               onClick={() => {
-                exportFullBackupJSON(students, attendanceRecords, settings, teachers);
+                exportFullBackupJSON(students, attendanceRecords, settings, teachers, schools);
                 onShowToast('Backup JSON Dibuat', 'File cadangan database (.json) berhasil diunduh.', 'success');
               }}
               className="w-full p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-between transition-all shadow-xs cursor-pointer"

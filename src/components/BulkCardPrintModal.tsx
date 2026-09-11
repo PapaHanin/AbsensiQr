@@ -17,6 +17,7 @@ interface BulkCardPrintModalProps {
   initialClass?: string;
   initialSelectedIds?: string[];
   onClose: () => void;
+  onUpdateSettings?: (newSettings: SystemSettings) => void;
 }
 
 export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
@@ -26,6 +27,7 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
   initialClass = 'Semua',
   initialSelectedIds,
   onClose,
+  onUpdateSettings,
 }) => {
   const isAdmin = currentTeacher?.role === 'admin' || currentTeacher?.teacherType === 'admin';
   const isWaliKelas = !isAdmin && (currentTeacher?.teacherType === 'wali_kelas' || Boolean(currentTeacher?.homeroomClass));
@@ -40,12 +42,22 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
     return initialClass !== 'Semua' ? initialClass : 'Semua';
   });
 
-  // Card Customization Options (Theme, Color, Font)
+  // Card Customization Options (Theme, Color, Font, TemplateId)
   const [cardOptions, setCardOptions] = useState<CardCustomizationOptions>({
     theme: 'wave',
     color: 'blue',
     font: 'sans',
+    templateId: settings.defaultCardTemplate || 'navy_gold',
   });
+
+  const handleSetDefaultTemplate = (templateId: any) => {
+    if (onUpdateSettings) {
+      onUpdateSettings({
+        ...settings,
+        defaultCardTemplate: templateId,
+      });
+    }
+  };
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => {
     if (initialSelectedIds && initialSelectedIds.length > 0) {
@@ -202,7 +214,7 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
     window.print();
   };
 
-  // Export to Vector PDF (8 Cards per A4 Page)
+  // Export to Vector PDF (9 Cards per A4 Page in ISO ID-1 standard 53.98 x 85.6 mm)
   const handleExportPDF = async () => {
     if (printableStudents.length === 0) return;
     setIsExportingPDF(true);
@@ -214,14 +226,14 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
         format: 'a4',
       });
 
-      // 8 Cards per A4 Page Layout: 2 columns x 4 rows
-      const cardsPerPage = 8;
-      const cardWidth = 90;
-      const cardHeight = 62;
-      const marginX = 10;
-      const marginY = 12;
-      const gapX = 10;
+      // 9 Cards per A4 Page Layout: 3 columns x 3 rows
+      const cardsPerPage = 9;
+      const cardWidth = 53.98;
+      const cardHeight = 85.6;
+      const gapX = 8;
       const gapY = 8;
+      const marginX = (210 - (3 * cardWidth + 2 * gapX)) / 2; // ~16.03 mm
+      const marginY = (297 - (3 * cardHeight + 2 * gapY)) / 2; // ~12.1 mm
 
       for (let i = 0; i < printableStudents.length; i++) {
         const student = printableStudents[i];
@@ -231,8 +243,8 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
           doc.addPage();
         }
 
-        const col = slotIndex % 2;
-        const row = Math.floor(slotIndex / 2);
+        const col = slotIndex % 3;
+        const row = Math.floor(slotIndex / 3);
         const x = marginX + col * (cardWidth + gapX);
         const y = marginY + row * (cardHeight + gapY);
 
@@ -246,7 +258,8 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
           settings.schoolName,
           photoMap[student.id],
           qrMap[student.id],
-          cardOptions
+          cardOptions,
+          settings
         );
 
         // Cutting Guideline Marks (Dashed light grey lines)
@@ -254,13 +267,11 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
         doc.setLineWidth(0.18);
         doc.setLineDashPattern([1.5, 2], 0);
 
-        // Vertical divider between column 0 and column 1
-        if (col === 0) {
-          const cutX = marginX + cardWidth + gapX / 2;
+        if (col < 2) {
+          const cutX = x + cardWidth + gapX / 2;
           doc.line(cutX, y - 2, cutX, y + cardHeight + 2);
         }
-        // Horizontal divider between rows
-        if (row < 3) {
+        if (row < 2) {
           const cutY = y + cardHeight + gapY / 2;
           doc.line(x - 2, cutY, x + cardWidth + 2, cutY);
         }
@@ -269,7 +280,7 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
 
       const safeClass = selectedClass.replace(/\s+/g, '_');
       const safeSchool = settings.schoolName.replace(/\s+/g, '_');
-      doc.save(`Kartu_Presensi_QR_${safeSchool}_Kelas_${safeClass}_8perA4.pdf`);
+      doc.save(`Kartu_Presensi_QR_${safeSchool}_Kelas_${safeClass}_ID1.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
       alert('Terjadi kesalahan saat mengekspor PDF kartu siswa.');
@@ -280,17 +291,17 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-6xl w-full max-h-[94vh] flex flex-col shadow-2xl relative my-auto animate-scale-up overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-6xl w-full h-[94vh] flex flex-col shadow-2xl relative my-auto animate-scale-up overflow-hidden">
         {/* Modal Top Control Bar (Non-Printable) */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-850 no-print">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/90 dark:bg-slate-850 shrink-0 no-print">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center text-lg font-bold shadow-sm shadow-indigo-600/20 shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center text-base font-bold shadow-sm shadow-indigo-600/20 shrink-0">
               <i className="fa-solid fa-id-card"></i>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-                  Cetak Kartu QR Siswa (Format 8 Kartu per A4)
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                  Cetak Kartu Siswa & Presensi QR (Format 8 / Lembar A4)
                 </h3>
                 {isWaliKelas && myHomeroom && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
@@ -298,8 +309,8 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Format standar 8 kartu per lembar A4. Pilih tema, warna, dan jenis tulisan sesuai identitas sekolah Anda.
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Pilih tema resmi sekolah dan lihat pratinjau kartu di bawah sebelum dicetak.
               </p>
             </div>
           </div>
@@ -340,24 +351,27 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
         <CardCustomizationPanel
           options={cardOptions}
           onChange={setCardOptions}
+          isAdmin={isAdmin}
+          onSetDefaultTemplate={handleSetDefaultTemplate}
+          currentDefaultTemplate={settings.defaultCardTemplate}
         />
 
         {/* Filters & Selection Controls (Non-Printable) */}
-        <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs no-print">
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="p-2.5 sm:p-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0 no-print">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Class Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5">
               <i className="fa-solid fa-graduation-cap text-indigo-600 dark:text-indigo-400"></i>
               <span className="font-semibold text-slate-500 dark:text-slate-400">Kelas:</span>
               {isWaliKelas && myHomeroom ? (
                 <span className="font-extrabold text-indigo-700 dark:text-indigo-300">
-                  Kelas {myHomeroom} (Terkunci ke Kelas Anda)
+                  Kelas {myHomeroom} (Terkunci)
                 </span>
               ) : (
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
-                  className="bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer"
+                  className="bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer text-xs"
                 >
                   <option value="Semua" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
                     Semua Kelas ({students.length} siswa)
@@ -372,46 +386,63 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
             </div>
 
             {/* Locked Format Badge (8 Kartu / Lembar) */}
-            <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3 py-1.5 text-indigo-800 dark:text-indigo-300">
+            <div className="hidden sm:flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-indigo-800 dark:text-indigo-300">
               <i className="fa-solid fa-table-cells text-indigo-600 dark:text-indigo-400"></i>
-              <span className="font-bold">Format Lembar: 8 Kartu per A4 (Presisi 2x4)</span>
+              <span className="font-bold text-[11px]">8 Kartu / A4</span>
             </div>
 
             {/* Search filter within class */}
             <div className="relative">
               <input
                 type="text"
-                placeholder="Cari siswa..."
+                placeholder="Cari nama / NIS..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-7 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-36 sm:w-48"
+                className="pl-7 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-32 sm:w-44"
               />
               <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]"></i>
             </div>
           </div>
 
-          {/* Selection Controls */}
+          {/* Selection Controls & Scroll Helper */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-              Terpilih: <strong>{printableStudents.length}</strong> dari {classFilteredStudents.length} siswa
+              Terpilih: <strong className="text-indigo-600 dark:text-indigo-400">{printableStudents.length}</strong>/{classFilteredStudents.length}
             </span>
             <button
               onClick={selectAll}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
             >
-              Pilih Semua
+              Semua
             </button>
             <button
               onClick={deselectAll}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
             >
-              Batal Pilih
+              Batal
+            </button>
+
+            {/* Direct button to scroll down to cards */}
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('cards-scroll-viewport');
+                if (el) el.scrollBy({ top: 300, behavior: 'smooth' });
+              }}
+              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+              title="Gulir ke bawah untuk melihat pratinjau kartu"
+            >
+              <i className="fa-solid fa-arrow-down text-[10px]"></i>
+              <span>Lihat Kartu</span>
             </button>
           </div>
         </div>
 
         {/* Scrollable Printable Cards Preview Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100 dark:bg-slate-950">
+        <div
+          id="cards-scroll-viewport"
+          className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-slate-100 dark:bg-slate-950 relative scroll-smooth"
+        >
           {isGeneratingQR ? (
             <div className="py-20 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto text-xl animate-spin">
@@ -435,7 +466,19 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
               </p>
             </div>
           ) : (
-            <div id="printable-cards-container" className="space-y-6">
+            <div id="printable-cards-container" className="space-y-4">
+              {/* Preview Header Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 text-xs no-print">
+                <span className="font-extrabold flex items-center gap-2 text-slate-800 dark:text-slate-100 text-sm">
+                  <i className="fa-solid fa-address-card text-indigo-600 dark:text-indigo-400"></i>
+                  Pratinjau Kartu Siswa ({printableStudents.length} Siswa Terpilih)
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <i className="fa-solid fa-circle-info text-indigo-500"></i>
+                  Gulir ke bawah untuk memeriksa seluruh kartu siswa.
+                </span>
+              </div>
+
               {/* CSS for direct Print dialog */}
               <style>{`
                 @media print {
@@ -466,6 +509,12 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
                     page-break-inside: avoid;
                     break-inside: avoid;
                   }
+                  .printable-card-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(3, 53.98mm) !important;
+                    gap: 8mm !important;
+                    justify-content: center !important;
+                  }
                   @page {
                     size: A4 portrait;
                     margin: 10mm;
@@ -473,8 +522,8 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
                 }
               `}</style>
 
-              {/* Grid Layout of Cards: 2 Columns (8 cards per page with page-break) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto">
+              {/* Grid Layout of Cards: 3 Columns on screen & print (9 cards per page with page-break) */}
+              <div className="printable-card-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto justify-items-center">
                 {printableStudents.map((student, idx) => {
                   const isChecked = selectedStudentIds.has(student.id);
                   const qrUrl = qrMap[student.id];
@@ -483,7 +532,7 @@ export const BulkCardPrintModal: React.FC<BulkCardPrintModalProps> = ({
                   return (
                     <div
                       key={student.id}
-                      className={(idx + 1) % 8 === 0 ? 'page-break' : ''}
+                      className={(idx + 1) % 9 === 0 ? 'page-break' : ''}
                     >
                       <StudentCardRenderer
                         student={student}

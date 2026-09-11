@@ -39,7 +39,11 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
   const [academicYear, setAcademicYear] = useState(settings.academicYear);
   const [headmasterName, setHeadmasterName] = useState(settings.headmasterName || 'Drs. H. Mulyadi, M.Pd');
   const [headmasterNip, setHeadmasterNip] = useState(settings.headmasterNip || '19680512 199403 1 005');
-  const [schoolCity, setSchoolCity] = useState(settings.schoolCity || 'Jakarta Selatan');
+  const [schoolCity, setSchoolCity] = useState(settings.schoolCity || 'Paser');
+  const [schoolRegency, setSchoolRegency] = useState(settings.schoolRegency || 'PEMERINTAH KABUPATEN PASER');
+  const [schoolDepartment, setSchoolDepartment] = useState(settings.schoolDepartment || 'DINAS PENDIDIKAN DAN KEBUDAYAAN');
+  const [cardTitle, setCardTitle] = useState(settings.cardTitle || 'KARTU TANDA SISWA & PRESENSI DIGITAL');
+  const [cardValidityText, setCardValidityText] = useState(settings.cardValidityText || 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA');
   const [schoolAddress, setSchoolAddress] = useState(settings.schoolAddress || '');
   const [announcementTitle, setAnnouncementTitle] = useState(settings.announcementTitle || '');
   const [announcementContent, setAnnouncementContent] = useState(settings.announcementContent || '');
@@ -54,7 +58,11 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
     setAcademicYear(settings.academicYear);
     setHeadmasterName(settings.headmasterName || 'Drs. H. Mulyadi, M.Pd');
     setHeadmasterNip(settings.headmasterNip || '19680512 199403 1 005');
-    setSchoolCity(settings.schoolCity || 'Jakarta Selatan');
+    setSchoolCity(settings.schoolCity || 'Paser');
+    setSchoolRegency(settings.schoolRegency || 'PEMERINTAH KABUPATEN PASER');
+    setSchoolDepartment(settings.schoolDepartment || 'DINAS PENDIDIKAN DAN KEBUDAYAAN');
+    setCardTitle(settings.cardTitle || 'KARTU TANDA SISWA & PRESENSI DIGITAL');
+    setCardValidityText(settings.cardValidityText || 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA');
     setSchoolAddress(settings.schoolAddress || '');
     setAnnouncementTitle(settings.announcementTitle || '');
     setAnnouncementContent(settings.announcementContent || '');
@@ -73,7 +81,11 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
       academicYear: academicYear.trim() || '2025/2026',
       headmasterName: headmasterName.trim(),
       headmasterNip: headmasterNip.trim(),
-      schoolCity: schoolCity.trim() || 'Jakarta',
+      schoolCity: schoolCity.trim() || 'Paser',
+      schoolRegency: schoolRegency.trim() || 'PEMERINTAH KABUPATEN PASER',
+      schoolDepartment: schoolDepartment.trim() || 'DINAS PENDIDIKAN DAN KEBUDAYAAN',
+      cardTitle: cardTitle.trim() || 'KARTU TANDA SISWA & PRESENSI DIGITAL',
+      cardValidityText: cardValidityText.trim() || 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA',
       schoolAddress: schoolAddress.trim(),
       // Only admin is permitted to update announcement content
       announcementTitle: isAdmin ? announcementTitle.trim() : (settings.announcementTitle || ''),
@@ -328,6 +340,67 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
                         onChange={(e) => setSchoolAddress(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
                       />
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-400">
+                      <i className="fa-solid fa-id-card"></i>
+                      <span>Kop & Teks Resmi Kartu Pelajar Digital</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
+                          Pemerintah Kab./Kota (Baris 1 Kop)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: PEMERINTAH KABUPATEN PASER"
+                          value={schoolRegency}
+                          onChange={(e) => setSchoolRegency(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
+                          Dinas Pendidikan (Baris 2 Kop)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: DINAS PENDIDIKAN DAN KEBUDAYAAN"
+                          value={schoolDepartment}
+                          onChange={(e) => setSchoolDepartment(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
+                          Judul Kartu Pelajar
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: KARTU TANDA SISWA & PRESENSI DIGITAL"
+                          value={cardTitle}
+                          onChange={(e) => setCardTitle(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
+                          Teks Masa Berlaku Kartu (Pita Bawah)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA"
+                          value={cardValidityText}
+                          onChange={(e) => setCardValidityText(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                        />
+                      </div>
                     </div>
                   </div>
 

@@ -118,7 +118,11 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
   const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
   const [formData, setFormData] = useState({
     nis: '',
+    nisn: '',
     name: '',
+    birthPlace: '',
+    birthDate: '',
+    address: '',
     classRoom: 'Kelas 1',
     gender: 'Laki-laki' as Gender,
     parentPhone: '',
@@ -128,9 +132,10 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
 
   // Dynamic unique classes list derived from actual students & default SD classes
   const availableClasses = useMemo(() => {
-    const classSet = new Set<string>(SD_CLASSES);
+    const classSet = new Set<string>();
+    SD_CLASSES.forEach((c) => classSet.add(formatClassLabel(c)));
     students.forEach((s) => {
-      if (s.classRoom) classSet.add(s.classRoom);
+      if (s.classRoom) classSet.add(formatClassLabel(s.classRoom));
     });
     return Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
   }, [students]);
@@ -142,7 +147,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
       counts[cls] = 0;
     });
     students.forEach((s) => {
-      const cls = s.classRoom || 'Lainnya';
+      const cls = formatClassLabel(s.classRoom || 'Lainnya');
       counts[cls] = (counts[cls] || 0) + 1;
     });
     return counts;
@@ -156,13 +161,19 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
           !query ||
           std.name.toLowerCase().includes(query) ||
           std.nis.toLowerCase().includes(query) ||
+          (std.nisn && std.nisn.toLowerCase().includes(query)) ||
+          (std.birthPlace && std.birthPlace.toLowerCase().includes(query)) ||
+          (std.address && std.address.toLowerCase().includes(query)) ||
           (std.parentPhone && std.parentPhone.includes(query));
 
         let matchClass = true;
         if (isWaliKelas && myHomeroom) {
           matchClass = isHomeroomClassMatch(std.classRoom, myHomeroom);
         } else if (selectedClass !== 'Semua') {
-          matchClass = isHomeroomClassMatch(std.classRoom, selectedClass) || std.classRoom === selectedClass;
+          matchClass =
+            isHomeroomClassMatch(std.classRoom, selectedClass) ||
+            formatClassLabel(std.classRoom) === formatClassLabel(selectedClass) ||
+            std.classRoom === selectedClass;
         }
 
         return matchSearch && matchClass;
@@ -279,7 +290,11 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
     const initialClass = (isWaliKelas && myHomeroom) ? myHomeroom : (selectedClass !== 'Semua' ? selectedClass : 'Kelas 1');
     setFormData({
       nis: String(1000 + students.length + 1),
+      nisn: '',
       name: '',
+      birthPlace: '',
+      birthDate: '',
+      address: '',
       classRoom: initialClass,
       gender: 'Laki-laki',
       parentPhone: '',
@@ -301,8 +316,12 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
     setEditingStudent(student);
     setFormData({
       nis: student.nis,
+      nisn: student.nisn || '',
       name: student.name,
-      classRoom: student.classRoom || '1-A',
+      birthPlace: student.birthPlace || '',
+      birthDate: student.birthDate || '',
+      address: student.address || '',
+      classRoom: student.classRoom || 'Kelas 1',
       gender: student.gender,
       parentPhone: student.parentPhone,
       avatarUrl: student.avatarUrl || getDefaultAvatar(student.gender),
@@ -341,7 +360,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
   };
 
   /**
-   * Handle Excel File Upload (.xls, .xlsx, .csv) for Bulk Student Import
+   * Handle Excel File Upload (.xls, .xlsx) for Bulk Student Import
    */
   const handleImportExcelFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -363,7 +382,11 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
         parsedStudents.forEach((std) => {
           onAddStudent({
             nis: std.nis,
+            nisn: std.nisn,
             name: std.name,
+            birthPlace: std.birthPlace,
+            birthDate: std.birthDate,
+            address: std.address,
             classRoom: std.classRoom,
             gender: std.gender,
             parentPhone: std.parentPhone,
@@ -582,7 +605,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
         </div>
       )}
 
-      {/* CSV Import Banner Notification */}
+      {/* Excel Import Banner Notification */}
       {importStatus && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-bold flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -631,7 +654,25 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
               <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700/60 rounded-xl px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-200">
                 <i className="fa-solid fa-graduation-cap text-emerald-600 dark:text-emerald-400 text-xs"></i>
                 <span className="font-semibold text-emerald-700 dark:text-emerald-300">Kelas:</span>
-                <span className="font-bold">Kelas {myHomeroom} ({classCounts[myHomeroom] || 0} siswa)</span>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="bg-transparent text-emerald-900 dark:text-emerald-100 font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value={myHomeroom} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold">
+                    Kelas Saya ({formatClassLabel(myHomeroom)}) • Bisa Edit ({classCounts[formatClassLabel(myHomeroom)] || classCounts[myHomeroom] || 0} siswa)
+                  </option>
+                  <option value="Semua" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                    Semua Kelas ({students.length} siswa)
+                  </option>
+                  {availableClasses
+                    .filter((cls) => !isHomeroomClassMatch(cls, myHomeroom))
+                    .map((cls) => (
+                      <option key={cls} value={cls} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                        {formatClassLabel(cls)} ({classCounts[cls] || 0} siswa)
+                      </option>
+                    ))}
+                </select>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs">
@@ -729,7 +770,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                <span>Kelas {cls}</span>
+                <span>{cls}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                   isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}>
@@ -748,7 +789,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
               Menampilkan <strong className="text-slate-800 dark:text-white font-bold">{filteredStudents.length}</strong> dari{' '}
               <strong className="text-slate-800 dark:text-white font-bold">{students.length}</strong> siswa
               {selectedClass !== 'Semua' && (
-                <> (Kelas <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedClass}</span>)</>
+                <> (<span className="font-bold text-indigo-600 dark:text-indigo-400">{formatClassLabel(selectedClass)}</span>)</>
               )}
               {searchTerm && (
                 <> untuk kata kunci "<span className="italic font-medium text-slate-700 dark:text-slate-300">{searchTerm}</span>"</>
@@ -829,8 +870,8 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                   />
                 </th>
                 <th className="py-3 px-3">No</th>
-                <th className="py-3 px-4">Foto & Nama</th>
-                <th className="py-3 px-4">NIS</th>
+                <th className="py-3 px-4">Foto & Biodata Siswa</th>
+                <th className="py-3 px-4">NIS / NISN</th>
                 <th className="py-3 px-4">Kelas</th>
                 <th className="py-3 px-4">Gender</th>
                 <th className="py-3 px-4">Kontak Ortu</th>
@@ -863,21 +904,39 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-400 font-medium">{index + 1}</td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3">
                           <img
                             src={displayPhoto}
                             alt={student.name}
-                            className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-500/20 bg-slate-100 dark:bg-slate-800"
+                            className="w-10 h-10 rounded-xl object-cover ring-2 ring-indigo-500/20 bg-slate-100 dark:bg-slate-800 shrink-0 mt-0.5"
                           />
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-white text-sm">{student.name}</div>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                              Terdaftar: {student.createdAt}
-                            </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-white text-sm leading-snug">{student.name}</div>
+                            {(student.birthPlace || student.birthDate) && (
+                              <div className="text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                                <i className="fa-solid fa-cake-candles text-[9px] text-pink-500"></i>
+                                <span>{[student.birthPlace, student.birthDate].filter(Boolean).join(', ')}</span>
+                              </div>
+                            )}
+                            {student.address && (
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1 mt-0.5 truncate max-w-[220px]" title={student.address}>
+                                <i className="fa-solid fa-location-dot text-[9px] text-emerald-500"></i>
+                                <span>{student.address}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-amber-700 dark:text-amber-400">{student.nis}</td>
+                      <td className="py-3 px-4 font-mono">
+                        <div className="font-bold text-amber-700 dark:text-amber-400 text-xs">{student.nis}</div>
+                        {student.nisn ? (
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                            NISN: <span className="text-slate-700 dark:text-slate-300 font-bold">{student.nisn}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[9.5px] text-slate-400 italic">NISN belum diisi</div>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-bold text-emerald-700 dark:text-emerald-400">
                         <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/60">
                           {student.classRoom}
@@ -1055,30 +1114,101 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
             )}
 
             <form onSubmit={handleSubmitForm} className="space-y-4">
+              {/* Row 1: NIS & NISN */}
               <div className="grid grid-cols-2 gap-3">
-                {/* NIS */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                     NIS <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
+                    placeholder="Contoh: 1042"
                     value={formData.nis}
                     onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
-
-                {/* Class Dropdown - SD Classes */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    NISN <span className="text-slate-400 font-normal">(10 digit)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 0123456789"
+                    value={formData.nisn}
+                    onChange={(e) => setFormData({ ...formData, nisn: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Name */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                  Nama Lengkap Siswa <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Ahmad Fauzi"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Row 3: Tempat & Tanggal Lahir */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    Tempat Lahir
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Paser"
+                    value={formData.birthPlace}
+                    onChange={(e) => setFormData({ ...formData, birthPlace: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    Tanggal Lahir
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Alamat Tempat Tinggal */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                  Alamat Tempat Tinggal
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: RT 03 Desa Ulatan, Kec. Muara Samu"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Row 5: Kelas SD & Jenis Kelamin */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                     Kelas SD <span className="text-rose-500">*</span>
                   </label>
                   {isWaliKelas && myHomeroom ? (
-                    <div className="w-full bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2 text-xs text-emerald-900 font-bold flex items-center justify-between">
+                    <div className="w-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-xl px-3 py-2 text-xs text-emerald-900 dark:text-emerald-200 font-bold flex items-center justify-between">
                       <span>{formatClassLabel(myHomeroom)}</span>
-                      <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-extrabold">
+                      <span className="text-[9.5px] bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-100 px-1.5 py-0.5 rounded font-extrabold">
                         Terkunci Wali Kelas
                       </span>
                     </div>
@@ -1086,7 +1216,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     <select
                       value={formData.classRoom}
                       onChange={(e) => setFormData({ ...formData, classRoom: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
                     >
                       {availableClasses.map((cls) => (
                         <option key={cls} value={cls}>
@@ -1096,27 +1226,9 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     </select>
                   )}
                 </div>
-              </div>
 
-              {/* Name */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Lengkap Siswa <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Ahmad Fauzi"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Gender */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                     Jenis Kelamin
                   </label>
                   <select
@@ -1132,26 +1244,26 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                             : prev.avatarUrl,
                       }));
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
                   >
                     <option value="Laki-laki">Laki-laki</option>
                     <option value="Perempuan">Perempuan</option>
                   </select>
                 </div>
+              </div>
 
-                {/* Parent Phone */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    No. HP Orang Tua
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="081234567890"
-                    value={formData.parentPhone}
-                    onChange={(e) => setFormData({ ...formData, parentPhone: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
+              {/* Row 6: No. HP Orang Tua */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                  No. HP Orang Tua (WhatsApp)
+                </label>
+                <input
+                  type="text"
+                  placeholder="081234567890"
+                  value={formData.parentPhone}
+                  onChange={(e) => setFormData({ ...formData, parentPhone: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white"
+                />
               </div>
 
               {/* Photo Upload & Black/White Silhouette Options */}

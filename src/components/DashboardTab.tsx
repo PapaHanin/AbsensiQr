@@ -7,6 +7,7 @@ import { isHomeroomClassMatch, formatClassLabel, findHomeroomTeacher, resolveRec
 import { AutoAbsenteeModal } from './AutoAbsenteeModal';
 import { ScheduledLeaveModal } from './ScheduledLeaveModal';
 import { StudentBehaviorModal } from './StudentBehaviorModal';
+import { EditAttendanceModal } from './EditAttendanceModal';
 
 interface DashboardTabProps {
   students: Student[];
@@ -25,6 +26,7 @@ interface DashboardTabProps {
     customTime?: string
   ) => void;
   onDeleteRecord: (id: string) => void;
+  onUpdateAttendanceRecord?: (record: AttendanceRecord) => void;
   onSaveLeave?: (leave: ScheduledLeave, autoPopulateAttendance: boolean) => void;
   onDeleteLeave?: (leaveId: string) => void;
   onSaveBehaviorLog?: (log: BehaviorLog) => void;
@@ -44,6 +46,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   currentTeacher,
   onAddManualAttendance,
   onDeleteRecord,
+  onUpdateAttendanceRecord,
   onSaveLeave,
   onDeleteLeave,
   onSaveBehaviorLog,
@@ -68,6 +71,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   const [isAutoAbsenteeOpen, setIsAutoAbsenteeOpen] = useState(false);
   const [isScheduledLeaveOpen, setIsScheduledLeaveOpen] = useState(false);
   const [isStudentBehaviorOpen, setIsStudentBehaviorOpen] = useState(false);
+  const [isEditAttendanceOpen, setIsEditAttendanceOpen] = useState(false);
+  const [editingAttendanceRecord, setEditingAttendanceRecord] = useState<AttendanceRecord | null>(null);
 
   // Manual Attendance Form State
   const [manualStudentId, setManualStudentId] = useState('');
@@ -404,6 +409,18 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setEditingAttendanceRecord(null);
+                setIsEditAttendanceOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold rounded-xl transition-all cursor-pointer border border-indigo-200 dark:border-indigo-800"
+              title="Input baru atau koreksi absensi tanggal lampau"
+            >
+              <i className="fa-solid fa-pen-to-square text-indigo-600 dark:text-indigo-400"></i>
+              <span>Koreksi / Lampau</span>
+            </button>
+
             <button
               onClick={() => setIsManualModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
@@ -1306,6 +1323,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                               </button>
                             )}
                             <button
+                              onClick={() => {
+                                setEditingAttendanceRecord(record);
+                                setIsEditAttendanceOpen(true);
+                              }}
+                              title="Edit / Koreksi absensi ini"
+                              className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                            >
+                              <i className="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button
                               onClick={() => onDeleteRecord(record.id)}
                               title="Hapus riwayat ini"
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
@@ -1522,6 +1549,30 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           onSaveBehaviorLog={onSaveBehaviorLog}
           onDeleteBehaviorLog={onDeleteBehaviorLog}
           onClose={() => setIsStudentBehaviorOpen(false)}
+        />
+      )}
+
+      {/* 4. Modal Edit / Input Presensi Lampau */}
+      {isEditAttendanceOpen && (
+        <EditAttendanceModal
+          students={students}
+          teachers={teachers || []}
+          currentTeacher={currentTeacher || null}
+          attendanceRecords={attendanceRecords}
+          initialRecord={editingAttendanceRecord}
+          initialDate={selectedDate}
+          onClose={() => {
+            setIsEditAttendanceOpen(false);
+            setEditingAttendanceRecord(null);
+          }}
+          onSave={(updatedRec) => {
+            if (onUpdateAttendanceRecord) {
+              onUpdateAttendanceRecord(updatedRec);
+            }
+            setIsEditAttendanceOpen(false);
+            setEditingAttendanceRecord(null);
+          }}
+          onDelete={onDeleteRecord}
         />
       )}
     </div>

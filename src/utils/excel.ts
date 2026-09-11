@@ -9,21 +9,33 @@ export const downloadStudentImportTemplateExcel = (className: string = 'Kelas 1'
   const templateData = [
     {
       'NIS': '1001',
+      'NISN': '0123456781',
       'Nama': 'Ahmad Fauzi',
+      'Tempat Lahir': 'Paser',
+      'Tanggal Lahir': '2015-05-12',
+      'Alamat': 'RT 03 Desa Ulatan, Kec. Muara Samu',
       'Kelas': className,
       'Jenis Kelamin': 'Laki-laki',
       'No HP Orang Tua': '081234567890',
     },
     {
       'NIS': '1002',
+      'NISN': '0123456782',
       'Nama': 'Anisa Rahmawati',
+      'Tempat Lahir': 'Paser',
+      'Tanggal Lahir': '2015-08-20',
+      'Alamat': 'RT 01 Desa Ulatan, Kec. Muara Samu',
       'Kelas': className,
       'Jenis Kelamin': 'Perempuan',
       'No HP Orang Tua': '081234567891',
     },
     {
       'NIS': '1003',
+      'NISN': '0123456783',
       'Nama': 'Budi Santoso',
+      'Tempat Lahir': 'Paser',
+      'Tanggal Lahir': '2015-11-04',
+      'Alamat': 'RT 02 Desa Ulatan, Kec. Muara Samu',
       'Kelas': className,
       'Jenis Kelamin': 'Laki-laki',
       'No HP Orang Tua': '081234567892',
@@ -34,8 +46,12 @@ export const downloadStudentImportTemplateExcel = (className: string = 'Kelas 1'
 
   // Set column widths
   worksheet['!cols'] = [
-    { wch: 15 }, // NIS
+    { wch: 12 }, // NIS
+    { wch: 16 }, // NISN
     { wch: 28 }, // Nama
+    { wch: 16 }, // Tempat Lahir
+    { wch: 15 }, // Tanggal Lahir
+    { wch: 32 }, // Alamat
     { wch: 12 }, // Kelas
     { wch: 16 }, // Jenis Kelamin
     { wch: 20 }, // No HP Orang Tua
@@ -96,8 +112,14 @@ export const parseStudentExcelFile = async (
         const headerRow = (rows[0] as any[]).map((col) => String(col).trim().toLowerCase());
 
         // Validate or map column positions
-        let nisIdx = headerRow.findIndex((c) => c.includes('nis'));
+        let nisnIdx = headerRow.findIndex((c) => c.includes('nisn'));
+        let nisIdx = headerRow.findIndex((c) => c.includes('nis') && !c.includes('nisn'));
         let nameIdx = headerRow.findIndex((c) => c.includes('nama'));
+        let birthPlaceIdx = headerRow.findIndex((c) => c.includes('tempat') || c.includes('kota lahir'));
+        let birthDateIdx = headerRow.findIndex(
+          (c, idx) => idx !== birthPlaceIdx && (c.includes('tanggal') || c.includes('tgl lahir') || c.includes('tgl') || (c.includes('lahir') && !c.includes('tempat')))
+        );
+        let addressIdx = headerRow.findIndex((c) => c.includes('alamat') || c.includes('domisili') || c.includes('tinggal'));
         let classIdx = headerRow.findIndex((c) => c.includes('kelas'));
         let genderIdx = headerRow.findIndex((c) => c.includes('kelamin') || c.includes('gender') || c.includes('jk'));
         let phoneIdx = headerRow.findIndex(
@@ -123,7 +145,11 @@ export const parseStudentExcelFile = async (
           if (!row || row.length === 0) continue;
 
           const rawNis = String(row[nisIdx] ?? '').trim();
+          const rawNisn = nisnIdx !== -1 ? String(row[nisnIdx] ?? '').trim() : undefined;
           const rawName = String(row[nameIdx] ?? '').trim();
+          const rawBirthPlace = birthPlaceIdx !== -1 ? String(row[birthPlaceIdx] ?? '').trim() : undefined;
+          const rawBirthDate = birthDateIdx !== -1 ? String(row[birthDateIdx] ?? '').trim() : undefined;
+          const rawAddress = addressIdx !== -1 ? String(row[addressIdx] ?? '').trim() : undefined;
           const rawClass = String(row[classIdx] ?? '').trim() || defaultClass || '1-A';
           let rawGender = String(row[genderIdx] ?? '').trim();
           const rawPhone = String(row[phoneIdx] ?? '').trim();
@@ -152,7 +178,11 @@ export const parseStudentExcelFile = async (
           const newStudent: Student = {
             id: uniqueId,
             nis: rawNis,
+            nisn: rawNisn || undefined,
             name: rawName,
+            birthPlace: rawBirthPlace || undefined,
+            birthDate: rawBirthDate || undefined,
+            address: rawAddress || undefined,
             classRoom: rawClass,
             gender: gender,
             parentPhone: rawPhone,

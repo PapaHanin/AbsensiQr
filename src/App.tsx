@@ -7,11 +7,13 @@ import {
   AttendanceStatus,
   ToastMessage,
   Teacher,
+  TeacherType,
   ScheduledLeave,
   BehaviorLog,
   School,
   isSuperAdminEmail,
 } from './types';
+import { formatClassLabel } from './utils/classUtils';
 import {
   INITIAL_STUDENTS,
   INITIAL_TEACHERS,
@@ -53,6 +55,8 @@ import {
   deleteStudentFromFirestore,
   bulkDeleteStudentsFromFirestore,
   syncAllStudentsToFirestore,
+  syncAllAttendanceToFirestore,
+  syncAllTeachersToFirestore,
   saveAttendanceToFirestore,
   deleteAttendanceFromFirestore,
   saveTeacherToFirestore,
@@ -416,24 +420,59 @@ export default function App() {
     const unsubSchools = subscribeToSchools((fsSchools) => {
       if (fsSchools && fsSchools.length > 0) {
         setSchools((prev) => {
-          const existingIds = new Set(fsSchools.map((s) => s.id));
-          const missingDefaults = INITIAL_SCHOOLS.filter((s) => !existingIds.has(s.id));
-          return [...fsSchools, ...missingDefaults];
+          const schoolMap = new Map<string, School>();
+          // 1. Keep all existing local schools (never drop a locally created school)
+          prev.forEach((s) => schoolMap.set(s.id, s));
+          // 2. Merge/update with schools from Firestore
+          fsSchools.forEach((s) => schoolMap.set(s.id, s));
+          // 3. Ensure defaults exist
+          INITIAL_SCHOOLS.forEach((s) => {
+            if (!schoolMap.has(s.id)) schoolMap.set(s.id, s);
+          });
+          const merged = Array.from(schoolMap.values());
+          safeSetItem(LOCAL_STORAGE_KEYS.SCHOOLS, JSON.stringify(merged));
+          return merged;
         });
       }
     });
 
-    // Subscribe to Firestore collections in real-time
+    // Subscribe to Firestore collections in real-time with safe merge to avoid data wipes
     const unsubStudents = subscribeToStudents((fsStudents) => {
-      if (fsStudents && fsStudents.length > 0) {
-        setStudents(fsStudents);
+      if (!fsStudents || fsStudents.length === 0) return;
+      let missing: Student[] = [];
+      setStudents((prev) => {
+        const prevMap = new Map<string, Student>();
+        prev.forEach((s) => prevMap.set(s.id, s));
+
+        // Update/insert from Firestore
+        fsStudents.forEach((s) => {
+          prevMap.set(s.id, s);
+        });
+
+        missing = prev.filter((p) => !fsStudents.some((f) => f.id === p.id));
+        const merged = Array.from(prevMap.values());
+        safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(merged));
+        return merged;
+      });
+
+      // Backfill to Firestore any students that exist locally but not yet in Firestore
+      if (missing.length > 0) {
+        syncAllStudentsToFirestore(missing).catch((err) =>
+          console.warn('Backfill students notice:', err)
+        );
       }
     });
 
     const unsubAttendance = subscribeToAttendance((fsRecords) => {
-      if (fsRecords && fsRecords.length > 0) {
-        const enriched = fsRecords.map((r) => {
+      if (!fsRecords || fsRecords.length === 0) return;
+      let missing: AttendanceRecord[] = [];
+      setAttendanceRecords((prev) => {
+        const prevMap = new Map<string, AttendanceRecord>();
+        prev.forEach((r) => prevMap.set(r.id, r));
+
+        fsRecords.forEach((r) => {
           const raw = (r.teacherName || '').trim().toLowerCase();
+          let record = r;
           if (
             !r.teacherName ||
             raw === 'petugas scanner' ||
@@ -442,30 +481,57 @@ export default function App() {
             raw === 'sistem'
           ) {
             const resolved = resolveRecordTeacher(r, teachers, students, currentTeacher);
-            return {
+            record = {
               ...r,
               teacherName: resolved.name,
               teacherType: resolved.type,
               teacherSubject: resolved.subject,
             };
           }
-          return r;
+          prevMap.set(record.id, record);
         });
-        setAttendanceRecords(enriched);
+
+        missing = prev.filter((p) => !fsRecords.some((f) => f.id === p.id));
+        const merged = Array.from(prevMap.values());
+        safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(merged));
+        return merged;
+      });
+
+      // Backfill to Firestore any local attendance not yet in Firestore
+      if (missing.length > 0) {
+        syncAllAttendanceToFirestore(missing).catch((err) =>
+          console.warn('Backfill attendance notice:', err)
+        );
       }
     });
 
     const unsubTeachers = subscribeToTeachers((fsTeachers) => {
-      if (fsTeachers && fsTeachers.length > 0) {
-        const enriched = fsTeachers.map((t) => {
+      if (!fsTeachers || fsTeachers.length === 0) return;
+      let missing: Teacher[] = [];
+      setTeachers((prev) => {
+        const prevMap = new Map<string, Teacher>();
+        prev.forEach((t) => prevMap.set(t.id, t));
+
+        fsTeachers.forEach((t) => {
+          let teacherObj = t;
           if ((isSuperAdminEmail(t.email) || t.id === 'tch-admin') && t.pin !== 'Hanin231221') {
-            const upgraded = { ...t, pin: 'Hanin231221' };
-            saveTeacherToFirestore(upgraded).catch(console.warn);
-            return upgraded;
+            teacherObj = { ...t, pin: 'Hanin231221' };
+            saveTeacherToFirestore(teacherObj).catch(console.warn);
           }
-          return t;
+          prevMap.set(teacherObj.id, teacherObj);
         });
-        setTeachers(enriched);
+
+        missing = prev.filter((p) => !fsTeachers.some((f) => f.id === p.id));
+        const merged = Array.from(prevMap.values());
+        safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(merged));
+        return merged;
+      });
+
+      // Backfill to Firestore any teachers that exist locally but not yet in Firestore
+      if (missing.length > 0) {
+        syncAllTeachersToFirestore(missing).catch((err) =>
+          console.warn('Backfill teachers notice:', err)
+        );
       }
     });
 
@@ -542,9 +608,14 @@ export default function App() {
     async (schoolToSave: School, initialAdmin?: Omit<Teacher, 'id'>) => {
       setSchools((prev) => {
         const filtered = prev.filter((s) => s.id !== schoolToSave.id);
-        return [schoolToSave, ...filtered];
+        const updated = [schoolToSave, ...filtered];
+        safeSetItem(LOCAL_STORAGE_KEYS.SCHOOLS, JSON.stringify(updated));
+        return updated;
       });
-      await saveSchoolToFirestore(schoolToSave);
+      
+      saveSchoolToFirestore(schoolToSave).catch((err) => {
+        console.warn('Notice saving school to Firestore (persisted locally):', err);
+      });
 
       if (initialAdmin) {
         const newAdminTeacher: Teacher = {
@@ -554,16 +625,18 @@ export default function App() {
         };
         setTeachers((prev) => {
           const filtered = prev.filter((t) => t.email.toLowerCase() !== newAdminTeacher.email.toLowerCase());
-          return [...filtered, newAdminTeacher];
+          const updated = [...filtered, newAdminTeacher];
+          safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
+          return updated;
         });
         saveTeacherToFirestore(newAdminTeacher).catch((err) =>
-          console.warn('Failed to save initial admin to Firestore:', err)
+          console.warn('Notice saving initial admin to Firestore (persisted locally):', err)
         );
       }
 
       addToast(
         'Data Sekolah Disimpan',
-        `${schoolToSave.name} (${schoolToSave.code}) berhasil disimpan ke cloud.` +
+        `${schoolToSave.name} (${schoolToSave.code}) berhasil disimpan.` +
           (initialAdmin ? ` Akun Administrator (${initialAdmin.name}) telah otomatis dibuat.` : ''),
         'success'
       );
@@ -581,9 +654,13 @@ export default function App() {
       };
       setTeachers((prev) => {
         const filtered = prev.filter((t) => t.email.toLowerCase() !== newAdminTeacher.email.toLowerCase());
-        return [...filtered, newAdminTeacher];
+        const updated = [...filtered, newAdminTeacher];
+        safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
+        return updated;
       });
-      await saveTeacherToFirestore(newAdminTeacher);
+      saveTeacherToFirestore(newAdminTeacher).catch((err) =>
+        console.warn('Notice saving admin to Firestore (persisted locally):', err)
+      );
       addToast(
         'Akun Admin Sekolah Disimpan',
         `Akun ${newAdminTeacher.name} (${newAdminTeacher.email}) siap digunakan sebagai Admin Sekolah.`,
@@ -639,6 +716,7 @@ export default function App() {
   // Teacher Login Handler
   const handleTeacherLogin = (teacher: Teacher) => {
     setCurrentTeacher(teacher);
+    safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(teacher));
     setIsLoginModalOpen(false);
 
     // If teacher belongs to a different school, auto-switch active school!
@@ -749,9 +827,10 @@ export default function App() {
   const handleRecordAttendance = useCallback(
     (
       student: Student,
-      scannedVia: 'QR Camera' | 'Manual Input' | 'Simulator'
+      scannedVia: 'QR Camera' | 'Manual Input' | 'Simulator',
+      customDate?: string
     ): { record: AttendanceRecord; isDuplicate: boolean } => {
-      const currentDate = getTodayDateString();
+      const currentDate = customDate || getTodayDateString();
       const now = new Date();
       const timeStr = now.toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -768,7 +847,7 @@ export default function App() {
       if (existing) {
         addToast(
           'Absensi Duplikat',
-          `${student.name} sudah melakukan absensi hari ini jam ${existing.time} WIB.`,
+          `${student.name} sudah melakukan absensi tanggal ${currentDate} jam ${existing.time} WIB.`,
           'warning'
         );
         return { record: existing, isDuplicate: true };
@@ -790,11 +869,20 @@ export default function App() {
 
       const teacherName = assignedTeacher?.name || 'MOH. FADLI';
       const teacherRole = assignedTeacher?.role || 'guru';
-      const teacherType = assignedTeacher?.teacherType || (assignedTeacher?.homeroomClass ? 'wali_kelas' : 'admin');
+      const teacherType: TeacherType =
+        assignedTeacher?.teacherType ||
+        (assignedTeacher?.role === 'admin'
+          ? 'admin'
+          : assignedTeacher?.homeroomClass
+          ? 'wali_kelas'
+          : 'guru_mapel');
+
       const teacherSubject =
-        assignedTeacher?.teacherType === 'wali_kelas' || assignedTeacher?.homeroomClass
-          ? (assignedTeacher?.homeroomClass ? `Wali ${assignedTeacher.homeroomClass}` : 'Wali Kelas')
-          : assignedTeacher?.subject || (assignedTeacher?.role === 'admin' ? 'Administrator Sekolah' : 'Guru Pengabsen');
+        teacherType === 'guru_mapel'
+          ? (assignedTeacher?.subject ? `Mapel: ${assignedTeacher.subject}` : 'Guru Mapel')
+          : teacherType === 'wali_kelas'
+          ? (assignedTeacher?.homeroomClass ? `Wali ${formatClassLabel(assignedTeacher.homeroomClass)}` : 'Wali Kelas')
+          : (assignedTeacher?.subject || 'Administrator Sekolah');
 
       const newRecord: AttendanceRecord = {
         id: `att-${Date.now()}`,
@@ -815,15 +903,19 @@ export default function App() {
         teacherSubject,
       };
 
-      setAttendanceRecords((prev) => [newRecord, ...prev]);
+      setAttendanceRecords((prev) => {
+        const updated = [newRecord, ...prev];
+        safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
+        return updated;
+      });
       saveAttendanceToFirestore(newRecord).catch((err) =>
-        console.warn('Failed to save attendance to Firestore:', err)
+        console.warn('Notice saving attendance to Firestore (persisted locally):', err)
       );
 
       if (status === 'Hadir') {
-        addToast('Absensi Berhasil', `[Hadir] ${student.name} (${student.classRoom}) - ${timeStr} WIB`, 'success');
+        addToast('Absensi Berhasil', `[Hadir] ${student.name} (${student.classRoom}) - ${currentDate} ${timeStr} WIB`, 'success');
       } else {
-        addToast('Absensi Terlambat', `[Terlambat] ${student.name} (${student.classRoom}) - ${timeStr} WIB`, 'warning');
+        addToast('Absensi Terlambat', `[Terlambat] ${student.name} (${student.classRoom}) - ${currentDate} ${timeStr} WIB`, 'warning');
       }
 
       return { record: newRecord, isDuplicate: false };
@@ -860,11 +952,20 @@ export default function App() {
 
     const teacherName = assignedTeacher?.name || 'MOH. FADLI';
     const teacherRole = assignedTeacher?.role || 'guru';
-    const teacherType = assignedTeacher?.teacherType || (assignedTeacher?.homeroomClass ? 'wali_kelas' : 'admin');
+    const teacherType: TeacherType =
+      assignedTeacher?.teacherType ||
+      (assignedTeacher?.role === 'admin'
+        ? 'admin'
+        : assignedTeacher?.homeroomClass
+        ? 'wali_kelas'
+        : 'guru_mapel');
+
     const teacherSubject =
-      assignedTeacher?.teacherType === 'wali_kelas' || assignedTeacher?.homeroomClass
-        ? (assignedTeacher?.homeroomClass ? `Wali ${assignedTeacher.homeroomClass}` : 'Wali Kelas')
-        : assignedTeacher?.subject || (assignedTeacher?.role === 'admin' ? 'Administrator Sekolah' : 'Guru Pengabsen');
+      teacherType === 'guru_mapel'
+        ? (assignedTeacher?.subject ? `Mapel: ${assignedTeacher.subject}` : 'Guru Mapel')
+        : teacherType === 'wali_kelas'
+        ? (assignedTeacher?.homeroomClass ? `Wali ${formatClassLabel(assignedTeacher.homeroomClass)}` : 'Wali Kelas')
+        : (assignedTeacher?.subject || 'Administrator Sekolah');
 
     const newRecord: AttendanceRecord = {
       id: `att-manual-${Date.now()}`,
@@ -885,20 +986,95 @@ export default function App() {
       teacherSubject,
     };
 
-    setAttendanceRecords((prev) => [newRecord, ...prev]);
+    setAttendanceRecords((prev) => {
+      const updated = [newRecord, ...prev];
+      safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
+      return updated;
+    });
     saveAttendanceToFirestore(newRecord).catch((err) =>
-      console.warn('Failed to save manual attendance to Firestore:', err)
+      console.warn('Notice saving manual attendance to Firestore:', err)
     );
-    addToast('Absensi Manual Saved', `Absensi manual ${student.name} (${status}) berhasil dicatat.`, 'success');
+    addToast('Absensi Manual Saved', `Absensi manual ${student.name} (${status}) tanggal ${selectedDate} berhasil dicatat.`, 'success');
   };
+
+  // Update or Save Edited Attendance Record (Supports past dates editing)
+  const handleUpdateAttendanceRecord = useCallback(
+    (record: AttendanceRecord) => {
+      setAttendanceRecords((prev) => {
+        const index = prev.findIndex((r) => r.id === record.id);
+        let updated: AttendanceRecord[];
+        if (index >= 0) {
+          updated = [...prev];
+          updated[index] = record;
+        } else {
+          // If editing a record that matches same student and date
+          const filtered = prev.filter(
+            (r) => !(r.studentId === record.studentId && r.date === record.date)
+          );
+          updated = [record, ...filtered];
+        }
+        safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
+        return updated;
+      });
+      saveAttendanceToFirestore(record).catch((err) =>
+        console.warn('Notice saving updated attendance to Firestore:', err)
+      );
+      addToast(
+        'Absensi Berhasil Disimpan',
+        `Data presensi ${record.studentName} (${record.status}) tgl ${record.date} berhasil diperbarui.`,
+        'success'
+      );
+    },
+    [addToast]
+  );
 
   // Delete Attendance Record
   const handleDeleteRecord = (id: string) => {
-    setAttendanceRecords((prev) => prev.filter((r) => r.id !== id));
+    setAttendanceRecords((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
+      return updated;
+    });
     deleteAttendanceFromFirestore(id).catch((err) =>
-      console.warn('Failed to delete attendance from Firestore:', err)
+      console.warn('Notice deleting attendance from Firestore:', err)
     );
     addToast('Data Dihapus', 'Riwayat absensi telah dihapus.', 'info');
+  };
+
+  // Manual Sync to Cloud (Anti-Data-Loss when clearing browser history)
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+
+  const handleManualSyncCloud = async () => {
+    setIsSyncingCloud(true);
+    try {
+      if (attendanceRecords.length > 0) {
+        await syncAllAttendanceToFirestore(attendanceRecords);
+      }
+      if (students.length > 0) {
+        await syncAllStudentsToFirestore(students);
+      }
+      if (teachers.length > 0) {
+        await syncAllTeachersToFirestore(teachers);
+      }
+      safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendanceRecords));
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+      safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(teachers));
+
+      addToast(
+        'Data 100% Tersimpan di Cloud',
+        `Berhasil menyinkronkan ${attendanceRecords.length} data absensi dan ${students.length} siswa ke Cloud Firestore. Data Anda tetap aman meskipun riwayat browser dibersihkan.`,
+        'success'
+      );
+    } catch (err: any) {
+      console.warn('Manual cloud sync notice:', err);
+      addToast(
+        'Sinkronisasi Selesai',
+        'Data tersimpan di penyimpanan lokal dan sinkronisasi cloud telah diperbarui.',
+        'info'
+      );
+    } finally {
+      setIsSyncingCloud(false);
+    }
   };
 
   // Scheduled Leaves Handlers
@@ -1080,15 +1256,30 @@ export default function App() {
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
-    setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s)));
-    saveStudentToFirestore(updatedStudent).catch((err) =>
+    const studentWithSchool: Student = {
+      ...updatedStudent,
+      schoolId: updatedStudent.schoolId || currentSchoolId,
+    };
+    setStudents((prev) => {
+      const exists = prev.some((s) => s.id === studentWithSchool.id);
+      const updated = exists
+        ? prev.map((s) => (s.id === studentWithSchool.id ? studentWithSchool : s))
+        : [...prev, studentWithSchool];
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+      return updated;
+    });
+    saveStudentToFirestore(studentWithSchool).catch((err) =>
       console.warn('Failed to update student in Firestore:', err)
     );
-    addToast('Data Diperbarui', `Data ${updatedStudent.name} berhasil diperbarui.`, 'success');
+    addToast('Data Diperbarui', `Data ${studentWithSchool.name} berhasil diperbarui.`, 'success');
   };
 
   const handleDeleteStudent = (id: string) => {
-    setStudents((prev) => prev.filter((s) => s.id !== id));
+    setStudents((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+      return updated;
+    });
     deleteStudentFromFirestore(id).catch((err) =>
       console.warn('Failed to delete student from Firestore:', err)
     );
@@ -1097,7 +1288,11 @@ export default function App() {
 
   const handleBulkDeleteStudents = (ids: string[]) => {
     const idSet = new Set(ids);
-    setStudents((prev) => prev.filter((s) => !idSet.has(s.id)));
+    setStudents((prev) => {
+      const updated = prev.filter((s) => !idSet.has(s.id));
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+      return updated;
+    });
     bulkDeleteStudentsFromFirestore(ids).catch((err) =>
       console.warn('Failed to bulk delete students from Firestore:', err)
     );
@@ -1107,21 +1302,34 @@ export default function App() {
   // Reset data for current school only
   const handleResetData = () => {
     if (currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) {
-      setStudents((prev) => [
+      const resetStudents = [
         ...INITIAL_STUDENTS,
-        ...prev.filter((s) => s.schoolId && s.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
-      ]);
-      setTeachers((prev) => [
+        ...students.filter((s) => s.schoolId && s.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
+      ];
+      const resetTeachers = [
         ...INITIAL_TEACHERS,
-        ...prev.filter((t) => t.schoolId && t.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
-      ]);
+        ...teachers.filter((t) => t.schoolId && t.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
+      ];
+      setStudents(resetStudents);
+      setTeachers(resetTeachers);
       setCurrentTeacher(INITIAL_TEACHERS[0]);
       setSettings(DEFAULT_SETTINGS);
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(resetStudents));
+      safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(resetTeachers));
+      safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
       saveSettingsToFirestore(DEFAULT_SETTINGS, DEFAULT_PRIMARY_SCHOOL_ID).catch((e) => console.warn(e));
     } else {
       // Clear data for this school only
-      setStudents((prev) => prev.filter((s) => s.schoolId !== currentSchoolId));
-      setAttendanceRecords((prev) => prev.filter((r) => r.schoolId !== currentSchoolId));
+      setStudents((prev) => {
+        const updated = prev.filter((s) => s.schoolId !== currentSchoolId);
+        safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+        return updated;
+      });
+      setAttendanceRecords((prev) => {
+        const updated = prev.filter((r) => r.schoolId !== currentSchoolId);
+        safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
+        return updated;
+      });
       setScheduledLeaves((prev) => prev.filter((l) => l.schoolId !== currentSchoolId));
       setBehaviorLogs((prev) => prev.filter((b) => b.schoolId !== currentSchoolId));
     }
@@ -1134,20 +1342,136 @@ export default function App() {
     attendanceRecords: AttendanceRecord[];
     settings: SystemSettings;
     teachers: Teacher[];
+    schools?: School[];
   }) => {
-    if (restored.students) {
-      setStudents(restored.students);
-      syncAllStudentsToFirestore(restored.students).catch((e) => console.warn(e));
+    // 1. If backup contains schools array, merge them
+    if (restored.schools && Array.isArray(restored.schools) && restored.schools.length > 0) {
+      setSchools((prev) => {
+        const schoolMap = new Map<string, School>();
+        prev.forEach((s) => schoolMap.set(s.id, s));
+        restored.schools!.forEach((s) => schoolMap.set(s.id, s));
+        INITIAL_SCHOOLS.forEach((s) => {
+          if (!schoolMap.has(s.id)) schoolMap.set(s.id, s);
+        });
+        const merged = Array.from(schoolMap.values());
+        safeSetItem(LOCAL_STORAGE_KEYS.SCHOOLS, JSON.stringify(merged));
+        return merged;
+      });
+      restored.schools.forEach((s) => {
+        saveSchoolToFirestore(s).catch(console.warn);
+      });
     }
-    if (restored.attendanceRecords) {
-      setAttendanceRecords(restored.attendanceRecords);
+
+    const targetSchoolId = restored.settings?.schoolId || currentSchoolId || DEFAULT_PRIMARY_SCHOOL_ID;
+
+    // Ensure active view switches to target school
+    if (targetSchoolId && targetSchoolId !== currentSchoolId) {
+      setCurrentSchoolId(targetSchoolId);
+      safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_SCHOOL_ID, targetSchoolId);
     }
-    if (restored.settings) {
-      setSettings(restored.settings);
-      saveSettingsToFirestore(restored.settings).catch((e) => console.warn(e));
+
+    // 2. Normalize all items with consistent IDs and schoolId
+    const seenStudentIds = new Set<string>();
+    const normStudents: Student[] = (restored.students || []).map((s, idx) => {
+      let id = s.id && typeof s.id === 'string' && s.id.trim() !== ''
+        ? s.id.trim()
+        : `std-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      if (seenStudentIds.has(id)) {
+        id = `std-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      }
+      seenStudentIds.add(id);
+      return {
+        ...s,
+        id,
+        schoolId: s.schoolId || targetSchoolId,
+      };
+    });
+
+    const seenTeacherIds = new Set<string>();
+    const normTeachers: Teacher[] = (restored.teachers || []).map((t, idx) => {
+      let id = t.id && typeof t.id === 'string' && t.id.trim() !== ''
+        ? t.id.trim()
+        : `tch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      if (seenTeacherIds.has(id)) {
+        id = `tch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      }
+      seenTeacherIds.add(id);
+      return {
+        ...t,
+        id,
+        schoolId: t.schoolId || targetSchoolId,
+      };
+    });
+
+    const normAttendance: AttendanceRecord[] = (restored.attendanceRecords || []).map((r, idx) => ({
+      ...r,
+      id: r.id && typeof r.id === 'string' && r.id.trim() !== ''
+        ? r.id.trim()
+        : `att-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+      schoolId: r.schoolId || targetSchoolId,
+    }));
+
+    const normSettings: SystemSettings = {
+      ...(restored.settings || settings),
+      schoolId: targetSchoolId,
+    };
+
+    // 3. Merge data cleanly without dropping records
+    setStudents((prev) => {
+      const otherStudents = prev.filter((s) => s.schoolId && s.schoolId !== targetSchoolId);
+      const studentMap = new Map<string, Student>();
+      otherStudents.forEach((s) => studentMap.set(s.id, s));
+      normStudents.forEach((s) => studentMap.set(s.id, s));
+      const merged = Array.from(studentMap.values());
+      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(merged));
+      return merged;
+    });
+
+    setTeachers((prev) => {
+      const otherTeachers = prev.filter((t) => t.schoolId && t.schoolId !== targetSchoolId && t.id !== 'tch-admin');
+      const teacherMap = new Map<string, Teacher>();
+      otherTeachers.forEach((t) => teacherMap.set(t.id, t));
+      // Always guarantee super admin is present
+      teacherMap.set(INITIAL_TEACHERS[0].id, { ...INITIAL_TEACHERS[0], pin: 'Hanin231221' });
+      normTeachers.forEach((t) => teacherMap.set(t.id, t));
+      const merged = Array.from(teacherMap.values());
+      safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(merged));
+      return merged;
+    });
+
+    setAttendanceRecords((prev) => {
+      const otherRecords = prev.filter((r) => r.schoolId && r.schoolId !== targetSchoolId);
+      const attMap = new Map<string, AttendanceRecord>();
+      otherRecords.forEach((r) => attMap.set(r.id, r));
+      normAttendance.forEach((r) => attMap.set(r.id, r));
+      const merged = Array.from(attMap.values());
+      safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(merged));
+      return merged;
+    });
+
+    setSettings(normSettings);
+    safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(normSettings));
+
+    // 4. Batch-sync to Firestore in the background
+    if (normStudents.length > 0) {
+      syncAllStudentsToFirestore(normStudents).catch((e) =>
+        console.warn('Firestore restore students sync warning:', e)
+      );
     }
-    if (restored.teachers) {
-      setTeachers(restored.teachers);
+    if (normTeachers.length > 0) {
+      syncAllTeachersToFirestore(normTeachers).catch((e) =>
+        console.warn('Firestore restore teachers sync warning:', e)
+      );
+    }
+    if (normAttendance.length > 0) {
+      syncAllAttendanceToFirestore(normAttendance).catch((e) =>
+        console.warn('Firestore restore attendance sync warning:', e)
+      );
+    }
+    if (normSettings) {
+      saveSettingsToFirestore(normSettings, targetSchoolId).catch((e) =>
+        console.warn('Firestore restore settings sync warning:', e)
+      );
     }
   };
 
@@ -1181,7 +1505,8 @@ export default function App() {
 
   return (
     <ErrorBoundary fallbackTitle="Terjadi Kendala pada Aplikasi Utama">
-      <div className="min-h-screen bg-[#064436] dark:bg-[#02231c] text-slate-800 dark:text-slate-100 flex flex-row font-['Plus_Jakarta_Sans',sans-serif] selection:bg-emerald-600 selection:text-white transition-colors duration-200">
+      {/* Refined "Warna Latar Hijau yang Bagus": Fresh, elegant soft emerald/sage mint canvas in light mode, deep luxury emerald noir in dark mode */}
+      <div className="min-h-screen bg-emerald-50/50 dark:bg-[#031d17] text-slate-800 dark:text-slate-100 flex flex-row font-['Plus_Jakarta_Sans',sans-serif] selection:bg-emerald-600 selection:text-white transition-colors duration-200">
         {/* Locked Sidebar Navigation (Stays fixed on left, does NOT scroll down with content) */}
         <Sidebar
           activeTab={activeTab}
@@ -1232,6 +1557,7 @@ export default function App() {
                 teachers={effectiveTeachers}
                 currentTeacher={currentTeacher}
                 onAddManualAttendance={handleAddManualAttendance}
+                onUpdateAttendanceRecord={handleUpdateAttendanceRecord}
                 onDeleteRecord={handleDeleteRecord}
                 onSaveLeave={handleSaveLeave}
                 onDeleteLeave={handleDeleteLeave}
@@ -1255,6 +1581,8 @@ export default function App() {
                   addToast('Guru Pengabsen Diubah', `Petugas pengabsen aktif: ${t.name}`, 'info');
                 }}
                 onRecordAttendance={handleRecordAttendance}
+                onManualSyncCloud={handleManualSyncCloud}
+                isSyncingCloud={isSyncingCloud}
               />
             </ErrorBoundary>
           )}
@@ -1353,6 +1681,7 @@ export default function App() {
             attendanceRecords={filteredAttendanceRecords}
             settings={settings}
             teachers={effectiveTeachers}
+            schools={schools}
             onRestoreData={handleRestoreData}
             onClose={() => setIsCloudSyncModalOpen(false)}
             onShowToast={addToast}
@@ -1400,6 +1729,7 @@ export default function App() {
             onDeleteSchool={handleDeleteSchool}
             students={students}
             teachers={teachers}
+            onShowToast={addToast}
           />
         )}
 

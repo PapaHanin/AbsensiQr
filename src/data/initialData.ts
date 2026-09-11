@@ -32,6 +32,10 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   headmasterName: 'Drs. H. Mulyadi, M.Pd',
   headmasterNip: '19680512 199403 1 005',
   schoolCity: 'Paser',
+  schoolRegency: 'PEMERINTAH KABUPATEN PASER',
+  schoolDepartment: 'DINAS PENDIDIKAN DAN KEBUDAYAAN',
+  cardTitle: 'KARTU TANDA SISWA & PRESENSI DIGITAL',
+  cardValidityText: 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA',
 };
 
 export const SD_CLASSES = [

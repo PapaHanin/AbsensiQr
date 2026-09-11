@@ -25,10 +25,13 @@ export interface Student {
   id: string;
   schoolId?: string; // Multi-tenant school scope (defaults to 'sd-inpres-2-ulatan')
   nis: string;
-  nisn?: string;
+  nisn?: string; // Nomor Induk Siswa Nasional
   name: string;
   classRoom: string;
   gender: Gender;
+  birthPlace?: string; // Tempat Lahir
+  birthDate?: string; // Tanggal Lahir (YYYY-MM-DD atau formatted)
+  address?: string; // Alamat tempat tinggal
   parentPhone: string;
   avatarUrl: string;
   photo?: string; // Base64 encoded string or image URL
@@ -54,6 +57,14 @@ export interface AttendanceRecord {
   teacherSubject?: string;
 }
 
+export type CardTemplateId =
+  | 'navy_gold'
+  | 'emerald_gold'
+  | 'modern_minimalis'
+  | 'seraphic'
+  | 'nusantara'
+  | 'pelita';
+
 export interface SystemSettings {
   schoolId?: string;
   lateCutoffTime: string; // e.g. "07:00"
@@ -62,7 +73,12 @@ export interface SystemSettings {
   academicYear: string;
   headmasterName?: string; // e.g. "Drs. H. Mulyadi, M.Pd"
   headmasterNip?: string; // e.g. "19680512 199403 1 005"
-  schoolCity?: string; // e.g. "Jakarta"
+  schoolCity?: string; // e.g. "Paser"
+  schoolRegency?: string; // e.g. "PEMERINTAH KABUPATEN PASER"
+  schoolDepartment?: string; // e.g. "DINAS PENDIDIKAN DAN KEBUDAYAAN"
+  cardTitle?: string; // e.g. "KARTU TANDA SISWA & PRESENSI DIGITAL"
+  defaultCardTemplate?: CardTemplateId;
+  cardValidityText?: string;
   announcementTitle?: string;
   announcementContent?: string;
   announcementVersion?: string;

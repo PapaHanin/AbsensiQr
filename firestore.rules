@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Primitive Helpers
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
     }
 
     function incoming() {
@@ -28,13 +28,13 @@ service cloud.firestore {
              data.address is string && data.address.size() <= 300 &&
              data.academicYear is string && data.academicYear.size() <= 32 &&
              data.lateCutoffTime is string && data.lateCutoffTime.size() <= 16 &&
-             (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
-             (!('headmasterName' in data) || (data.headmasterName is string && data.headmasterName.size() <= 200)) &&
-             (!('headmasterNip' in data) || (data.headmasterNip is string && data.headmasterNip.size() <= 64)) &&
-             (!('contactPhone' in data) || (data.contactPhone is string && data.contactPhone.size() <= 64)) &&
-             (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 200)) &&
-             (!('iihhBeresDatabaseId' in data) || (data.iihhBeresDatabaseId is string && data.iihhBeresDatabaseId.size() <= 128)) &&
-             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000)) &&
+             (!('city' in data) || data.city == null || (data.city is string && data.city.size() <= 100)) &&
+             (!('headmasterName' in data) || data.headmasterName == null || (data.headmasterName is string && data.headmasterName.size() <= 200)) &&
+             (!('headmasterNip' in data) || data.headmasterNip == null || (data.headmasterNip is string && data.headmasterNip.size() <= 64)) &&
+             (!('contactPhone' in data) || data.contactPhone == null || (data.contactPhone is string && data.contactPhone.size() <= 64)) &&
+             (!('contactEmail' in data) || data.contactEmail == null || (data.contactEmail is string && data.contactEmail.size() <= 200)) &&
+             (!('iihhBeresDatabaseId' in data) || data.iihhBeresDatabaseId == null || (data.iihhBeresDatabaseId is string && data.iihhBeresDatabaseId.size() <= 128)) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 1000)) &&
              (!('isActive' in data) || data.isActive is bool);
     }
 
@@ -44,11 +44,16 @@ service cloud.firestore {
              data.nis is string && data.nis.size() <= 64 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.classRoom is string && data.classRoom.size() <= 64 &&
-             (data.gender == 'Laki-laki' || data.gender == 'Perempuan') &&
-             (!('schoolId' in data) || (data.schoolId is string && isValidId(data.schoolId))) &&
-             (!('parentPhone' in data) || (data.parentPhone is string && data.parentPhone.size() <= 64)) &&
-             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1000)) &&
-             (!('photo' in data) || (data.photo is string && data.photo.size() <= 1000));
+             (!('nisn' in data) || data.nisn == null || (data.nisn is string && data.nisn.size() <= 64)) &&
+             (!('birthPlace' in data) || data.birthPlace == null || (data.birthPlace is string && data.birthPlace.size() <= 100)) &&
+             (!('birthDate' in data) || data.birthDate == null || (data.birthDate is string && data.birthDate.size() <= 64)) &&
+             (!('address' in data) || data.address == null || (data.address is string && data.address.size() <= 300)) &&
+             (!('gender' in data) || data.gender == null || data.gender in ['Laki-laki', 'Perempuan', 'L', 'P', '']) &&
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && isValidId(data.schoolId))) &&
+             (!('parentPhone' in data) || data.parentPhone == null || (data.parentPhone is string && data.parentPhone.size() <= 64)) &&
+             (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 25000)) &&
+             (!('photo' in data) || data.photo == null || (data.photo is string && data.photo.size() <= 300000)) &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 64));
     }
 
     // Validation for Attendance entity
@@ -59,10 +64,14 @@ service cloud.firestore {
              data.classRoom is string && data.classRoom.size() <= 64 &&
              data.date is string && data.date.size() <= 32 &&
              data.time is string && data.time.size() <= 32 &&
-             (data.status == 'Hadir' || data.status == 'Terlambat' || data.status == 'Izin' || data.status == 'Sakit' || data.status == 'Alpa') &&
-             (data.scannedVia == 'QR Camera' || data.scannedVia == 'Manual Input' || data.scannedVia == 'Simulator') &&
-             (!('schoolId' in data) || (data.schoolId is string && isValidId(data.schoolId))) &&
-             (!('note' in data) || (data.note is string && data.note.size() <= 500));
+             (data.status in ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa']) &&
+             (!('scannedVia' in data) || data.scannedVia == null || (data.scannedVia is string && data.scannedVia.size() <= 64)) &&
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && isValidId(data.schoolId))) &&
+             (!('note' in data) || data.note == null || (data.note is string && data.note.size() <= 500)) &&
+             (!('teacherName' in data) || data.teacherName == null || (data.teacherName is string && data.teacherName.size() <= 200)) &&
+             (!('teacherType' in data) || data.teacherType == null || (data.teacherType is string && data.teacherType.size() <= 64)) &&
+             (!('teacherSubject' in data) || data.teacherSubject == null || (data.teacherSubject is string && data.teacherSubject.size() <= 100)) &&
+             (!('nis' in data) || data.nis == null || (data.nis is string && data.nis.size() <= 64));
     }
 
     // Validation for Teacher entity
@@ -70,13 +79,13 @@ service cloud.firestore {
       return data.id is string && isValidId(data.id) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.email is string && data.email.size() > 0 && data.email.size() <= 200 &&
-             data.subject is string && data.subject.size() <= 100 &&
-             (data.role == 'admin' || data.role == 'guru') &&
-             (data.teacherType == 'admin' || data.teacherType == 'wali_kelas' || data.teacherType == 'guru_mapel') &&
-             (!('pin' in data) || (data.pin is string && data.pin.size() <= 16)) &&
-             (!('nip' in data) || (data.nip is string && data.nip.size() <= 64)) &&
-             (!('schoolId' in data) || (data.schoolId is string && isValidId(data.schoolId))) &&
-             (!('homeroomClass' in data) || (data.homeroomClass is string && data.homeroomClass.size() <= 64));
+             (!('subject' in data) || data.subject == null || (data.subject is string && data.subject.size() <= 100)) &&
+             (data.role in ['admin', 'guru']) &&
+             (!('teacherType' in data) || data.teacherType == null || data.teacherType in ['admin', 'wali_kelas', 'guru_mapel']) &&
+             (!('pin' in data) || data.pin == null || (data.pin is string && data.pin.size() <= 64)) &&
+             (!('nip' in data) || data.nip == null || (data.nip is string && data.nip.size() <= 64)) &&
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && isValidId(data.schoolId))) &&
+             (!('homeroomClass' in data) || data.homeroomClass == null || (data.homeroomClass is string && data.homeroomClass.size() <= 64));
     }
 
     // Validation for SystemSettings entity
@@ -85,18 +94,22 @@ service cloud.firestore {
              data.schoolName is string && data.schoolName.size() <= 200 &&
              data.schoolAddress is string && data.schoolAddress.size() <= 300 &&
              data.academicYear is string && data.academicYear.size() <= 64 &&
-             (!('schoolId' in data) || (data.schoolId is string && isValidId(data.schoolId))) &&
-             (!('headmasterName' in data) || (data.headmasterName is string && data.headmasterName.size() <= 200)) &&
-             (!('headmasterNip' in data) || (data.headmasterNip is string && data.headmasterNip.size() <= 64)) &&
-             (!('schoolCity' in data) || (data.schoolCity is string && data.schoolCity.size() <= 100));
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && isValidId(data.schoolId))) &&
+             (!('headmasterName' in data) || data.headmasterName == null || (data.headmasterName is string && data.headmasterName.size() <= 200)) &&
+             (!('headmasterNip' in data) || data.headmasterNip == null || (data.headmasterNip is string && data.headmasterNip.size() <= 64)) &&
+             (!('schoolCity' in data) || data.schoolCity == null || (data.schoolCity is string && data.schoolCity.size() <= 100)) &&
+             (!('schoolRegency' in data) || data.schoolRegency == null || (data.schoolRegency is string && data.schoolRegency.size() <= 200)) &&
+             (!('schoolDepartment' in data) || data.schoolDepartment == null || (data.schoolDepartment is string && data.schoolDepartment.size() <= 200)) &&
+             (!('cardTitle' in data) || data.cardTitle == null || (data.cardTitle is string && data.cardTitle.size() <= 200)) &&
+             (!('cardValidityText' in data) || data.cardValidityText == null || (data.cardValidityText is string && data.cardValidityText.size() <= 200));
     }
 
     // Validation for CloudSync payload
     function isValidCloudSync(data) {
-      return data.syncCode is string && data.syncCode.size() <= 32 &&
+      return data.syncCode is string && data.syncCode.size() <= 64 &&
              data.lastSyncedAt is string && data.lastSyncedAt.size() <= 64 &&
              data.schoolName is string && data.schoolName.size() <= 200 &&
-             (!('schoolId' in data) || (data.schoolId is string && isValidId(data.schoolId)));
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && isValidId(data.schoolId)));
     }
 
     // Validation for ScheduledLeave entity
@@ -150,75 +163,51 @@ service cloud.firestore {
 
     // Schools Collection (Multi-Sekolah Multi-Tenant)
     match /schools/{schoolId} {
-      allow read: if true;
-      allow create: if isValidId(schoolId) && isValidSchool(incoming());
-      allow update: if isValidId(schoolId) && isValidSchool(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(schoolId);
+      allow read, write: if isValidId(schoolId);
     }
 
     // Students Collection
     match /students/{studentId} {
-      allow read: if true;
-      allow create: if isValidId(studentId) && isValidStudent(incoming());
-      allow update: if isValidId(studentId) && isValidStudent(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(studentId);
+      allow read, write: if isValidId(studentId);
     }
 
     // Data Siswa Collections (alias used in e-Rapor / iihh Beres)
     match /data_siswa/{studentId} {
-      allow read: if true;
-      allow write: if isValidId(studentId);
+      allow read, write: if isValidId(studentId);
     }
 
     match /siswa/{studentId} {
-      allow read: if true;
-      allow write: if isValidId(studentId);
+      allow read, write: if isValidId(studentId);
     }
 
     // Attendance Collection
     match /attendance/{recordId} {
-      allow read: if true;
-      allow create: if isValidId(recordId) && isValidAttendance(incoming());
-      allow update: if isValidId(recordId) && isValidAttendance(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(recordId);
+      allow read, write: if isValidId(recordId);
     }
 
     // Teachers Collection
     match /teachers/{teacherId} {
-      allow read: if true;
-      allow create: if isValidId(teacherId) && isValidTeacher(incoming());
-      allow update: if isValidId(teacherId) && isValidTeacher(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(teacherId);
+      allow read, write: if isValidId(teacherId);
     }
 
     // Settings Collection
     match /settings/{settingId} {
-      allow read: if true;
-      allow create, update: if isValidId(settingId) && isValidSettings(incoming());
-      allow delete: if false;
+      allow read, write: if isValidId(settingId);
     }
 
     // Cloud Sync Collection
     match /cloud_sync/{syncCode} {
-      allow read: if true;
-      allow create, update: if isValidId(syncCode) && isValidCloudSync(incoming());
-      allow delete: if isValidId(syncCode);
+      allow read, write: if isValidId(syncCode);
     }
 
     // Scheduled Leaves Collection (Izin / Sakit multi-hari)
     match /leaves/{leaveId} {
-      allow read: if true;
-      allow create: if isValidId(leaveId) && isValidScheduledLeave(incoming());
-      allow update: if isValidId(leaveId) && isValidScheduledLeave(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(leaveId);
+      allow read, write: if isValidId(leaveId);
     }
 
     // Student Behavior Logs Collection (Catatan Karakter, Kebaikan & Pelanggaran)
     match /behavior_logs/{logId} {
-      allow read: if true;
-      allow create: if isValidId(logId) && isValidBehaviorLog(incoming());
-      allow update: if isValidId(logId) && isValidBehaviorLog(incoming()) && incoming().id == existing().id;
-      allow delete: if isValidId(logId);
+      allow read, write: if isValidId(logId);
     }
 
     // e-Rapor Merdeka Semester Recap Collection (SD Inpres 2 Ulatan)

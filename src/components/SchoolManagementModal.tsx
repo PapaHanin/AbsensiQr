@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { School, Student, Teacher, SUPER_ADMIN_EMAIL } from '../types';
 import { DEFAULT_PRIMARY_SCHOOL_ID } from '../data/initialData';
 
@@ -13,6 +13,7 @@ interface SchoolManagementModalProps {
   onDeleteSchool: (schoolId: string) => Promise<void>;
   students: Student[];
   teachers: Teacher[];
+  onShowToast?: (title: string, message: string, type: 'success' | 'warning' | 'error' | 'info') => void;
 }
 
 export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
@@ -26,6 +27,7 @@ export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
   onDeleteSchool,
   students,
   teachers,
+  onShowToast,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -225,36 +227,47 @@ export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
     setFormError('');
 
     if (!formData.name.trim()) {
-      setFormError('Nama sekolah wajib diisi.');
+      const msg = 'Nama resmi sekolah wajib diisi.';
+      setFormError(msg);
+      onShowToast?.('Form Belum Lengkap', msg, 'warning');
       return;
     }
 
-    // Validate Admin Account if adding new school
+    // Prepare Admin Account if adding new school
     let initialAdmin: Omit<Teacher, 'id'> | undefined = undefined;
+    const cleanSchoolCode = (formData.code.trim() || handleGenerateCode(formData.name)).toUpperCase();
+
     if (!editingSchoolId && createAdminAccount) {
-      if (!adminName.trim()) {
-        setFormError('Nama lengkap Admin / Kepala Sekolah wajib diisi.');
-        return;
-      }
-      if (!adminEmail.trim()) {
-        setFormError('Email login Admin Sekolah wajib diisi.');
-        return;
-      }
-      const cleanEmail = adminEmail.trim().toLowerCase();
+      const effectiveAdminName =
+        adminName.trim() ||
+        formData.headmasterName.trim() ||
+        (adminRoleType === 'operator'
+          ? `Operator ${formData.name.trim()}`
+          : `Kepala ${formData.name.trim()}`);
+
+      const suggestedEmail = `admin.${cleanSchoolCode.toLowerCase()}@sekolah.sch.id`;
+      let cleanEmail = adminEmail.trim().toLowerCase() || suggestedEmail;
+
       if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
-        setFormError(`Email "${SUPER_ADMIN_EMAIL}" adalah akun khusus Super Administrator Pusat.`);
+        const msg = `Email "${SUPER_ADMIN_EMAIL}" adalah akun khusus Super Administrator. Gunakan email lain seperti "${suggestedEmail}".`;
+        setFormError(msg);
+        onShowToast?.('Email Khusus Super Admin', msg, 'warning');
         return;
       }
-      if (adminPin.trim().length < 4) {
-        setFormError('PIN Keamanan login admin minimal 4 karakter (contoh: 1234).');
+
+      const effectivePin = adminPin.trim() || '1234';
+      if (effectivePin.length < 4) {
+        const msg = 'PIN Keamanan login admin minimal 4 karakter (contoh: 1234).';
+        setFormError(msg);
+        onShowToast?.('PIN Terlalu Pendek', msg, 'warning');
         return;
       }
 
       initialAdmin = {
-        name: adminName.trim(),
-        nip: adminNip.trim() || undefined,
+        name: effectiveAdminName,
+        nip: adminNip.trim() || formData.headmasterNip.trim() || undefined,
         email: cleanEmail,
-        pin: adminPin.trim() || '1234',
+        pin: effectivePin,
         role: 'admin',
         teacherType: 'admin',
         subject:
@@ -267,17 +280,20 @@ export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
 
     setIsSaving(true);
     try {
+      const cleanSlug = formData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 25) || 'school';
+
       const generatedId =
         editingSchoolId ||
-        formData.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, '-')
-          .replace(/-+/g, '-')
-          .slice(0, 35) + '-' + Math.random().toString(36).substring(2, 6);
+        `${cleanSlug}-${Math.random().toString(36).substring(2, 7)}`;
 
       const schoolToSave: School = {
         id: generatedId,
-        code: formData.code.trim().toUpperCase() || handleGenerateCode(formData.name),
+        code: cleanSchoolCode,
         name: formData.name.trim(),
         address: formData.address.trim() || 'Alamat belum diatur',
         city: formData.city.trim() || 'Indonesia',
@@ -297,6 +313,7 @@ export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
 
       await onSaveSchool(schoolToSave, initialAdmin);
       setIsFormOpen(false);
+      setFormError('');
 
       // If new school was created with admin credentials, show the success credentials card
       if (!editingSchoolId && initialAdmin) {
@@ -312,6 +329,11 @@ export const SchoolManagementModal: React.FC<SchoolManagementModalProps> = ({
       } else if (!editingSchoolId) {
         onSelectSchool(schoolToSave.id);
       }
+    } catch (err: any) {
+      console.warn('Gagal memproses data sekolah:', err);
+      const msg = 'Gagal menyimpan sekolah: ' + (err?.message || 'Terjadi kesalahan sistem.');
+      setFormError(msg);
+      onShowToast?.('Gagal Menyimpan', msg, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -606,7 +628,7 @@ Terima kasih dan selamat bertugas!`;
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} noValidate className="space-y-5">
                 {/* SECTION 1: Identitas Sekolah */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
@@ -916,6 +938,13 @@ Terima kasih dan selamat bertugas!`;
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {formError && (
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-2.5 animate-in fade-in">
+                    <i className="fa-solid fa-circle-exclamation shrink-0 text-sm text-rose-600"></i>
+                    <span>{formError}</span>
                   </div>
                 )}
 

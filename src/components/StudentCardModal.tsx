@@ -93,7 +93,8 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
         settings.schoolName,
         photoDataUrl,
         qrDataUrl,
-        cardOptions
+        cardOptions,
+        settings
       );
 
       const safeName = student.name.replace(/\s+/g, '_');

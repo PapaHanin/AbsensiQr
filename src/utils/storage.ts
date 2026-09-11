@@ -2,16 +2,36 @@
  * Safe LocalStorage Utility with automatic quota management and error recovery
  */
 
+const PROTECTED_STORAGE_KEYS = new Set([
+  'absensi_siswa_schools_v1',
+  'absensi_siswa_current_school_id_v1',
+  'absensi_siswa_students_v2',
+  'absensi_siswa_attendance_v2',
+  'absensi_siswa_settings_v1',
+  'absensi_siswa_teachers_v2',
+  'absensi_siswa_current_teacher_v2',
+  'absensi_siswa_leaves_v1',
+  'absensi_siswa_behavior_logs_v1',
+  'theme',
+  'absensi_active_sync_code',
+  'absensi_last_cloud_sync_time',
+  'absensi_google_spreadsheet_id',
+  'absensi_google_spreadsheet_url',
+  'dapodik_announcement_acknowledged',
+  'absensi_ulatan_iihh_beres_db_id',
+]);
+
 export function cleanStaleLocalStorage(): void {
   try {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key) {
-        // Remove legacy migration keys or excess backup cache keys
+      if (key && !PROTECTED_STORAGE_KEYS.has(key)) {
+        // Only remove temporary cache keys or legacy obsolete keys
         if (
           key.startsWith('absensi_cloud_sync_backup_') ||
-          key.includes('_v1') ||
+          key === 'absensi_siswa_students_v1' ||
+          key === 'absensi_siswa_attendance_v1' ||
           key.startsWith('temp_') ||
           key.startsWith('cache_')
         ) {

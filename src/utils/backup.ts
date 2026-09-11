@@ -1,4 +1,4 @@
-import { AttendanceRecord, Student, SystemSettings, Teacher } from '../types';
+import { AttendanceRecord, School, Student, SystemSettings, Teacher } from '../types';
 
 /**
  * Export full application database to a JSON backup file
@@ -7,12 +7,14 @@ export const exportFullBackupJSON = (
   students: Student[],
   attendanceRecords: AttendanceRecord[],
   settings: SystemSettings,
-  teachers: Teacher[]
+  teachers: Teacher[],
+  schools?: School[]
 ) => {
   const backupData = {
     app: 'Aplikasi Absensi QR Code Siswa SD',
     version: '1.0.0',
     exportDate: new Date().toISOString(),
+    schools: schools || [],
     students,
     attendanceRecords,
     settings,

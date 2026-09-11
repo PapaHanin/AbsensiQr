@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Student } from '../types';
+import { CardTemplateId, Student, SystemSettings } from '../types';
 
 export type CardThemeId = 'wave' | 'geometric' | 'classic' | 'minimalist';
 export type CardColorId = 'blue' | 'emerald' | 'ruby' | 'purple' | 'amber' | 'monochrome';
@@ -9,7 +9,66 @@ export interface CardCustomizationOptions {
   theme: CardThemeId;
   color: CardColorId;
   font: CardFontId;
+  templateId?: CardTemplateId;
 }
+
+export interface CardPresetTemplateDef {
+  id: CardTemplateId;
+  name: string;
+  tagline: string;
+  category: string;
+  colorLabel: string;
+  primaryHex: string;
+  secondaryHex: string;
+  accentHex: string;
+  description: string;
+  lanyardColor: string;
+}
+
+export const CARD_PRESET_TEMPLATES: Record<string, CardPresetTemplateDef> = {
+  navy_gold: {
+    id: 'navy_gold',
+    name: 'Biru Navy & Emas (Resmi Kemdikbud)',
+    tagline: 'Standar Nasional Resmi - Sangat Elegan & Rapi',
+    category: 'Standar Nasional',
+    colorLabel: 'Navy Blue & Gold Foil',
+    primaryHex: '#0f2b5c',
+    secondaryHex: '#c59b27',
+    accentHex: '#1e3a8a',
+    description: 'Format resmi standar Kemdikbud dengan logo Tut Wuri Handayani, pasfoto 3x4 berlis emas, susunan biodata rapi, QR presensi berbingkai fokus, dan stempel pengesahan kepala sekolah.',
+    lanyardColor: '#0f2b5c',
+  },
+  emerald_gold: {
+    id: 'emerald_gold',
+    name: 'Zamrud Hijau & Emas (Klasik Prestise)',
+    tagline: 'Nuansa Prestise Akademik - Berwibawa & Sejuk',
+    category: 'Klasik Akademik',
+    colorLabel: 'Forest Emerald & Champagne',
+    primaryHex: '#064e3b',
+    secondaryHex: '#d97706',
+    accentHex: '#047857',
+    description: 'Kombinasi hijau zamrud elegan dengan aksen lis emas, logo pendidikan Indonesia, struktur biodata rapi dengan kontras tinggi dan mudah terbaca scanner.',
+    lanyardColor: '#064e3b',
+  },
+  modern_minimalis: {
+    id: 'modern_minimalis',
+    name: 'Modern Eksekutif (Slate & Biru Safir)',
+    tagline: 'Gaya Kontemporer Rapi - Minimalis & Bersih',
+    category: 'Modern Minimalis',
+    colorLabel: 'Charcoal Slate & Sapphire',
+    primaryHex: '#1e293b',
+    secondaryHex: '#2563eb',
+    accentHex: '#0f172a',
+    description: 'Desain modern tanpa ornamen berlebih. Memiliki hierarki tipografi tajam, pasfoto dengan outline halus, QR code presisi tinggi, dan footer validitas yang tertata.',
+    lanyardColor: '#1e293b',
+  },
+};
+
+export const getCardPresetTemplate = (id?: string): CardPresetTemplateDef => {
+  if (id === 'emerald_gold' || id === 'nusantara') return CARD_PRESET_TEMPLATES.emerald_gold;
+  if (id === 'modern_minimalis' || id === 'pelita') return CARD_PRESET_TEMPLATES.modern_minimalis;
+  return CARD_PRESET_TEMPLATES.navy_gold;
+};
 
 export interface ColorDef {
   id: CardColorId;
@@ -208,7 +267,82 @@ export const CARD_FONTS: Record<CardFontId, FontDef> = {
 };
 
 /**
+ * Helper to draw Tut Wuri Handayani vector emblem in jsPDF
+ */
+function drawTutWuriHandayaniPDF(
+  doc: jsPDF,
+  cx: number,
+  cy: number,
+  r: number,
+  primaryColor: [number, number, number],
+  goldColor: [number, number, number]
+) {
+  // Circular frame background
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
+  doc.setLineWidth(0.3);
+  doc.circle(cx, cy, r, 'FD');
+
+  // Wings / Garuda Shield
+  doc.setFillColor(goldColor[0], goldColor[1], goldColor[2]);
+  doc.triangle(cx - r * 0.7, cy + r * 0.1, cx, cy - r * 0.4, cx + r * 0.7, cy + r * 0.1, 'F');
+
+  // Open Book
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(cx - r * 0.45, cy + r * 0.1, r * 0.9, r * 0.35, 'F');
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.15);
+  doc.line(cx, cy + r * 0.1, cx, cy + r * 0.45);
+
+  // Flame of Knowledge
+  doc.setFillColor(220, 38, 38);
+  doc.circle(cx, cy - r * 0.3, r * 0.2, 'F');
+}
+
+/**
+ * Helper to draw authentic Indonesian official school rubber stamp watermark
+ */
+function drawOfficialStampPDF(
+  doc: jsPDF,
+  cx: number,
+  cy: number,
+  r: number,
+  cityName: string
+) {
+  doc.setDrawColor(29, 78, 216); // Stamp blue ink
+  doc.setLineWidth(0.25);
+  doc.circle(cx, cy, r, 'D');
+  doc.setLineWidth(0.12);
+  doc.circle(cx, cy, r - 0.7, 'D');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(2.8);
+  doc.setTextColor(29, 78, 216);
+  doc.text(`★ DISDIKBUD ★`, cx, cy - r * 0.35, { align: 'center' });
+  doc.setFontSize(3.6);
+  doc.text('RESMI', cx, cy + 0.4, { align: 'center' });
+  doc.setFontSize(2.6);
+  doc.text((cityName || 'PASER').toUpperCase(), cx, cy + r * 0.58, { align: 'center' });
+}
+
+/**
+ * Helper to draw realistic digital cursive signature in blue ink
+ */
+function drawDigitalSignaturePDF(doc: jsPDF, startX: number, baselineY: number) {
+  doc.setDrawColor(30, 58, 138); // Navy ink
+  doc.setLineWidth(0.3);
+  doc.line(startX, baselineY + 1.5, startX + 3, baselineY - 2.5);
+  doc.line(startX + 3, baselineY - 2.5, startX + 6, baselineY + 1.5);
+  doc.line(startX + 6, baselineY + 1.5, startX + 10, baselineY - 3.2);
+  doc.line(startX + 10, baselineY - 3.2, startX + 15, baselineY + 1);
+  doc.line(startX + 15, baselineY + 1, startX + 22, baselineY - 1);
+  doc.setLineWidth(0.2);
+  doc.line(startX + 1, baselineY + 2.4, startX + 23, baselineY + 2);
+}
+
+/**
  * Draw official customizable student card in jsPDF with strict coordinate bounding
+ * Formatted for standard portrait ID-1: width 53.98 mm x height 85.6 mm
  */
 export const drawCustomizedCardPDF = (
   doc: jsPDF,
@@ -220,274 +354,258 @@ export const drawCustomizedCardPDF = (
   schoolName: string,
   photoDataUrl: string | undefined,
   qrDataUrl: string | undefined,
-  options: CardCustomizationOptions
+  options: CardCustomizationOptions,
+  settings?: SystemSettings
 ) => {
-  const colorDef = CARD_COLORS[options.color] || CARD_COLORS.blue;
-  const fontDef = CARD_FONTS[options.font] || CARD_FONTS.sans;
-  const theme = options.theme || 'wave';
+  const rawTpl = options.templateId || settings?.defaultCardTemplate || 'navy_gold';
+  let templateId = rawTpl;
+  if (rawTpl === 'seraphic') templateId = 'navy_gold';
+  if (rawTpl === 'nusantara') templateId = 'emerald_gold';
+  if (rawTpl === 'pelita') templateId = 'modern_minimalis';
 
-  const [prR, prG, prB] = colorDef.primaryRgb;
-  const [scR, scG, scB] = colorDef.secondaryRgb;
-  const [ltR, ltG, ltB] = colorDef.lightRgb;
-  const [bdR, bdG, bdB] = colorDef.borderRgb;
+  const finalSchoolName = (schoolName || settings?.schoolName || 'SD INPRES 2 ULATAN').toUpperCase();
+  const schoolCity = settings?.schoolCity || 'Paser';
+  const schoolRegency = settings?.schoolRegency || (schoolCity ? `PEMERINTAH KABUPATEN ${schoolCity.toUpperCase()}` : 'PEMERINTAH KABUPATEN PASER');
+  const schoolDepartment = settings?.schoolDepartment || 'DINAS PENDIDIKAN DAN KEBUDAYAAN';
+  const cardTitle = settings?.cardTitle || 'KARTU TANDA SISWA & PRESENSI DIGITAL';
+  const cardValidityText = settings?.cardValidityText || 'KARTU RESMI PELAJAR • BERLAKU SELAMA MENJADI SISWA';
+  const headmasterName = settings?.headmasterName || 'Drs. H. Mulyadi, M.Pd';
+  const headmasterNip = settings?.headmasterNip || '19680512 199403 1 005';
+  const academicYear = settings?.academicYear || '2025/2026';
 
-  // 1. Base Card White Rectangle & Border
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(x, y, cardWidth, cardHeight, 2.5, 2.5, 'FD');
+  // Theme palettes: professional, elegant, neat
+  let primary: [number, number, number] = [15, 43, 92]; // Navy #0f2b5c
+  let gold: [number, number, number] = [197, 155, 39]; // Gold #c59b27
+  let darkText: [number, number, number] = [15, 23, 42];
 
-  // 2. Theme Graphic Accents
-  if (theme === 'wave') {
-    // Wave Corner Shapes
-    const cornerW = 20;
-    const cornerH = 16;
-
-    // Top-Left Wave Layers
-    doc.setFillColor(prR, prG, prB);
-    doc.triangle(x, y, x + cornerW, y, x, y + cornerH, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.triangle(x, y, x + cornerW * 0.7, y, x, y + cornerH * 0.7, 'F');
-    doc.setFillColor(ltR, ltG, ltB);
-    doc.triangle(x, y, x + cornerW * 0.4, y, x, y + cornerH * 0.4, 'F');
-
-    doc.setDrawColor(ltR, ltG, ltB);
-    doc.setLineWidth(0.2);
-    doc.line(x + 2, y + cornerH, x + cornerW * 1.1, y + 2);
-    doc.line(x + 5, y + cornerH * 1.15, x + cornerW * 1.25, y + 4);
-
-    // Top-Right Wave Layers
-    doc.setFillColor(prR, prG, prB);
-    doc.triangle(x + cardWidth, y, x + cardWidth - cornerW, y, x + cardWidth, y + cornerH, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.triangle(x + cardWidth, y, x + cardWidth - cornerW * 0.7, y, x + cardWidth, y + cornerH * 0.7, 'F');
-    doc.setFillColor(ltR, ltG, ltB);
-    doc.triangle(x + cardWidth, y, x + cardWidth - cornerW * 0.4, y, x + cardWidth, y + cornerH * 0.4, 'F');
-
-    doc.setDrawColor(ltR, ltG, ltB);
-    doc.setLineWidth(0.2);
-    doc.line(x + cardWidth - 2, y + cornerH, x + cardWidth - cornerW * 1.1, y + 2);
-
-    // Bottom-Left Wave Layers
-    doc.setFillColor(prR, prG, prB);
-    doc.triangle(x, y + cardHeight, x + cornerW, y + cardHeight, x, y + cardHeight - cornerH, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.triangle(x, y + cardHeight, x + cornerW * 0.7, y + cardHeight, x, y + cardHeight - cornerH * 0.7, 'F');
-    doc.setFillColor(ltR, ltG, ltB);
-    doc.triangle(x, y + cardHeight, x + cornerW * 0.4, y + cardHeight, x, y + cardHeight - cornerH * 0.4, 'F');
-    doc.setDrawColor(ltR, ltG, ltB);
-    doc.line(x + 2, y + cardHeight - cornerH, x + cornerW * 1.1, y + cardHeight - 2);
-  } else if (theme === 'geometric') {
-    // Sharp Polygon Cuts & Tech Diagonal Lines
-    const corner = 18;
-    // Top-Left Polygon
-    doc.setFillColor(prR, prG, prB);
-    doc.triangle(x, y, x + corner, y, x, y + corner, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.rect(x, y, 4, corner + 2, 'F');
-    doc.setFillColor(ltR, ltG, ltB);
-    doc.circle(x + corner + 3, y + 3, 1, 'F');
-    doc.circle(x + corner + 6, y + 3, 0.6, 'F');
-
-    // Top-Right Polygon
-    doc.setFillColor(prR, prG, prB);
-    doc.triangle(x + cardWidth, y, x + cardWidth - corner, y, x + cardWidth, y + corner, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.rect(x + cardWidth - 4, y, 4, corner + 2, 'F');
-
-    // Bottom Band
-    doc.setFillColor(prR, prG, prB);
-    doc.rect(x, y + cardHeight - 3, cardWidth, 3, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.rect(x + 10, y + cardHeight - 4, cardWidth - 20, 1, 'F');
-  } else if (theme === 'classic') {
-    // Royal Classic Border & Corner Medallions
-    doc.setDrawColor(prR, prG, prB);
-    doc.setLineWidth(0.6);
-    doc.roundedRect(x + 2, y + 2, cardWidth - 4, cardHeight - 4, 1.8, 1.8, 'D');
-
-    doc.setDrawColor(ltR, ltG, ltB);
-    doc.setLineWidth(0.2);
-    doc.roundedRect(x + 2.8, y + 2.8, cardWidth - 5.6, cardHeight - 5.6, 1.4, 1.4, 'D');
-
-    // Top & Bottom Gold Ribbon Bars
-    doc.setFillColor(prR, prG, prB);
-    doc.rect(x + 16, y + 1.2, cardWidth - 32, 1.6, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.rect(x + 22, y + 1.6, cardWidth - 44, 0.8, 'F');
-
-    doc.setFillColor(prR, prG, prB);
-    doc.rect(x + 16, y + cardHeight - 2.8, cardWidth - 32, 1.6, 'F');
-  } else if (theme === 'minimalist') {
-    // Clean Left Accent Pillar & Subtle Modern Dividers
-    doc.setFillColor(prR, prG, prB);
-    doc.roundedRect(x, y, 3.5, cardHeight, 1.2, 1.2, 'F');
-    doc.setFillColor(scR, scG, scB);
-    doc.rect(x + 3.5, y, 1.2, cardHeight, 'F');
-
-    // Top Micro Line
-    doc.setFillColor(ltR, ltG, ltB);
-    doc.rect(x + 6, y + 1, cardWidth - 12, 0.5, 'F');
+  if (templateId === 'emerald_gold') {
+    primary = [6, 78, 59]; // Forest Emerald #064e3b
+    gold = [217, 119, 6]; // Amber Gold #d97706
+    darkText = [6, 44, 34];
+  } else if (templateId === 'modern_minimalis') {
+    primary = [30, 41, 59]; // Slate #1e293b
+    gold = [37, 99, 235]; // Royal Blue #2563eb
+    darkText = [15, 23, 42];
   }
 
-  // 3. Header Section (Emblem, Authenticity Seal, School Name, Subtitle)
-  const headerCenterY = y + 3;
-
-  // School Logo Vector
-  doc.setFillColor(bdR, bdG, bdB);
-  doc.triangle(
-    x + cardWidth / 2 - 8,
-    headerCenterY + 4,
-    x + cardWidth / 2 - 5,
-    headerCenterY,
-    x + cardWidth / 2 - 2,
-    headerCenterY + 4,
-    'F'
-  );
-  doc.triangle(
-    x + cardWidth / 2 - 5,
-    headerCenterY + 4,
-    x + cardWidth / 2 - 2,
-    headerCenterY + 1,
-    x + cardWidth / 2 + 1,
-    headerCenterY + 4,
-    'F'
-  );
-
-  // Authenticity Seal
-  doc.setFillColor(234, 179, 8); // Gold
-  doc.setDrawColor(202, 138, 4);
-  doc.roundedRect(x + cardWidth / 2 + 3, headerCenterY, 4, 4, 0.8, 0.8, 'FD');
-  doc.setFillColor(20, 184, 166); // Teal center
-  doc.circle(x + cardWidth / 2 + 5, headerCenterY + 2, 1.1, 'F');
-
-  // School Name (Custom Font)
-  doc.setTextColor(bdR, bdG, bdB);
-  doc.setFontSize(8);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.text(schoolName.toUpperCase(), x + cardWidth / 2, y + 10.5, {
-    align: 'center',
-    maxWidth: cardWidth - 36,
-  });
-
-  // Subtitle
-  doc.setFontSize(4.5);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('KARTU PRESENSI QR RESMI PELAJAR', x + cardWidth / 2, y + 13.5, {
-    align: 'center',
-  });
-
-  // 4. Left Column: Student Details & Bottom Pill
-  const leftX = x + (theme === 'minimalist' ? 6.5 : 4);
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(5);
-  doc.setFont(fontDef.jsPdfFont, 'normal');
-  doc.text('Nama:', leftX, y + 18.5);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(7.5);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.text(student.name.toUpperCase(), leftX, y + 23, {
-    maxWidth: cardWidth * 0.32,
-  });
-
-  doc.setFontSize(6);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.setTextColor(30, 41, 59);
-  doc.text(`NIS:  ${student.nis}`, leftX, y + 29.5);
-  doc.text(
-    `Kelas: ${student.classRoom} ${student.gender === 'Laki-laki' ? 'L' : 'P'}`,
-    leftX,
-    y + 34.5
-  );
-
-  // Bottom-Left Pill Badge
-  const pillY = y + cardHeight - 8.5;
-  const pillW = 30;
-  const pillH = 4.8;
+  // 1. Base White Card Body & Drop Shadow / Border
   doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(bdR, bdG, bdB);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(leftX, pillY, pillW, pillH, pillH / 2, pillH / 2, 'FD');
-  doc.setFontSize(4.2);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.setTextColor(bdR, bdG, bdB);
-  doc.text('PINDAI SAAT PRESENSI', leftX + pillW / 2, pillY + 3.3, {
-    align: 'center',
-  });
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, cardWidth, cardHeight, 2.5, 2.5, 'FD');
 
-  // 5. Middle Column: Pasfoto
-  const photoW = 18;
-  const photoH = 24;
-  const photoX = x + cardWidth * 0.39;
-  const photoY = y + 16.5;
-
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(scR, scG, scB);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(
-    photoX - 0.6,
-    photoY - 0.6,
-    photoW + 1.2,
-    photoH + 1.2,
-    1.2,
-    1.2,
-    'FD'
-  );
-
+  // 2. Top Lanyard Punch Guide
   doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(ltR, ltG, ltB);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(photoX, photoY, photoW, photoH, 0.8, 0.8, 'FD');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.18);
+  doc.roundedRect(x + cardWidth / 2 - 4.5, y + 0.8, 9, 1.5, 0.75, 0.75, 'FD');
+
+  // 3. Top Header Banner
+  const headerTop = y + 2.8;
+  const headerHeight = 12.2;
+  doc.setFillColor(primary[0], primary[1], primary[2]);
+  doc.rect(x, headerTop, cardWidth, headerHeight, 'F');
+
+  // Logo Tut Wuri Handayani on Left of Header
+  drawTutWuriHandayaniPDF(doc, x + 5.2, headerTop + headerHeight / 2, 2.6, primary, gold);
+
+  // Institution Header Texts
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(2.8);
+  doc.setTextColor(241, 245, 249);
+  doc.text(schoolRegency, x + 9.5, headerTop + 2.8);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(2.7);
+  doc.setTextColor(gold[0], gold[1], gold[2]);
+  doc.text(schoolDepartment, x + 9.5, headerTop + 5.0);
+
+  doc.setFontSize(5.0);
+  doc.setTextColor(255, 255, 255);
+  doc.text(finalSchoolName, x + 9.5, headerTop + 8.2, { maxWidth: cardWidth - 11 });
+
+  doc.setFontSize(3.0);
+  doc.setTextColor(gold[0], gold[1], gold[2]);
+  doc.text(cardTitle, x + 9.5, headerTop + 10.8);
+
+  // Metallic Ribbon Divider
+  doc.setDrawColor(gold[0], gold[1], gold[2]);
+  doc.setLineWidth(0.35);
+  doc.line(x, headerTop + headerHeight, x + cardWidth, headerTop + headerHeight);
+
+  // 4. Middle Section: Photo & Biodata
+  const photoX = x + 3.5;
+  const photoY = headerTop + headerHeight + 2.2;
+  const photoW = 17.5;
+  const photoH = 23.5; // Standard 3:4 passport aspect ratio
+
+  // Photo Frame
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(gold[0], gold[1], gold[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'FD');
 
   const photoSrc = photoDataUrl || student.photo || student.avatarUrl;
   if (photoSrc) {
     try {
-      doc.addImage(photoSrc, 'JPEG', photoX, photoY, photoW, photoH);
+      doc.addImage(photoSrc, 'JPEG', photoX + 0.35, photoY + 0.35, photoW - 0.7, photoH - 0.7);
     } catch {
-      // Photo error fallback
+      doc.setFontSize(3.2);
+      doc.setTextColor(148, 163, 184);
+      doc.text('PASFOTO', photoX + photoW / 2, photoY + photoH / 2, { align: 'center' });
+    }
+  } else {
+    doc.setFontSize(3.2);
+    doc.setTextColor(148, 163, 184);
+    doc.text('PASFOTO', photoX + photoW / 2, photoY + photoH / 2, { align: 'center' });
+  }
+
+  // Biodata Column (Right of Photo)
+  const infoX = x + 23;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.0);
+  doc.setTextColor(100, 116, 139);
+  doc.text('NAMA SISWA', infoX, photoY + 2.3);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.2);
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text(student.name.toUpperCase(), infoX, photoY + 5.6, { maxWidth: 28 });
+
+  // Subtle separator line
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.2);
+  doc.line(infoX, photoY + 8.8, x + cardWidth - 3.5, photoY + 8.8);
+
+  // Data rows
+  const nisDisplay = student.nisn ? `${student.nis} / ${student.nisn}` : student.nis;
+  doc.setFontSize(4.0);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('NIS/NISN', infoX, photoY + 12.0);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text(`:  ${nisDisplay}`, infoX + 11.5, photoY + 12.0);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Kelas', infoX, photoY + 15.0);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text(`:  ${student.classRoom}`, infoX + 11.5, photoY + 15.0);
+
+  const ttl = [student.birthPlace, student.birthDate].filter(Boolean).join(', ');
+  if (ttl) {
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('TTL', infoX, photoY + 18.0);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+    doc.text(`:  ${ttl}`, infoX + 11.5, photoY + 18.0, { maxWidth: 27 });
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Gender', infoX, photoY + (ttl ? 20.8 : 18.0));
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text(`:  ${student.gender || 'Laki-laki'}`, infoX + 11.5, photoY + (ttl ? 20.8 : 18.0));
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Status', infoX, photoY + (ttl ? 23.3 : 21.0));
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(22, 101, 52); // Emerald active
+  doc.text(':  Siswa Aktif', infoX + 11.5, photoY + (ttl ? 23.3 : 21.0));
+
+  // 5. Middle Horizontal Divider
+  const midDividerY = photoY + photoH + 2.0;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.2);
+  doc.line(x + 3.5, midDividerY, x + cardWidth - 3.5, midDividerY);
+
+  // 6. Lower Section: QR Code & Kepala Sekolah Pengesahan
+  const qrX = x + 3.5;
+  const qrY = midDividerY + 2.0;
+  const qrSize = 17.5;
+
+  // QR Container Box
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(qrX, qrY, qrSize, qrSize, 1.0, 1.0, 'FD');
+
+  if (qrDataUrl) {
+    try {
+      doc.addImage(qrDataUrl, 'PNG', qrX + 0.4, qrY + 0.4, qrSize - 0.8, qrSize - 0.8);
+    } catch {
+      // qr fallback
     }
   }
 
-  doc.setFontSize(4);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('PASFOTO', photoX + photoW / 2, photoY + photoH + 3.2, {
-    align: 'center',
-  });
+  // QR Label below
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.2);
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text('PINDAI PRESENSI', qrX + qrSize / 2, qrY + qrSize + 2.6, { align: 'center' });
 
-  // 6. Right Column: High-Contrast QR Code
-  const qrSize = 25;
-  const qrX = x + cardWidth - qrSize - 4;
-  const qrY = y + 16;
+  // Right Side: Kepala Sekolah Signature & Official Stamp
+  const signCenterX = x + 38;
+  const signBaseY = qrY + 1.8;
 
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(scR, scG, scB);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(
-    qrX - 0.8,
-    qrY - 0.8,
-    qrSize + 1.6,
-    qrSize + 1.6,
-    1.5,
-    1.5,
-    'FD'
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(3.2);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${schoolCity}, ${academicYear}`, signCenterX, signBaseY, { align: 'center' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.8);
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text('Kepala Sekolah,', signCenterX, signBaseY + 3.2, { align: 'center' });
+
+  // Official Stamp Watermark
+  drawOfficialStampPDF(doc, signCenterX - 5.5, signBaseY + 7.5, 4.4, schoolCity);
+
+  // Digital Signature
+  drawDigitalSignaturePDF(doc, signCenterX - 11, signBaseY + 7.2);
+
+  // Headmaster Name (Underlined)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.4);
+  doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+  doc.text(headmasterName, signCenterX, signBaseY + 13.2, { align: 'center' });
+
+  const nameWidth = doc.getTextWidth(headmasterName);
+  doc.setDrawColor(darkText[0], darkText[1], darkText[2]);
+  doc.setLineWidth(0.25);
+  doc.line(signCenterX - nameWidth / 2, signBaseY + 13.8, signCenterX + nameWidth / 2, signBaseY + 13.8);
+
+  // Headmaster NIP
+  const rawNip = headmasterNip || '-';
+  const nipLabel = rawNip.startsWith('NIP') ? rawNip : `NIP. ${rawNip}`;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(3.2);
+  doc.setTextColor(100, 116, 139);
+  doc.text(nipLabel, signCenterX, signBaseY + 16.6, { align: 'center' });
+
+  // 7. Bottom Security Band / Footer Ribbon
+  const footerH = 4.0;
+  const footerY = y + cardHeight - footerH;
+  doc.setFillColor(primary[0], primary[1], primary[2]);
+  doc.rect(x, footerY, cardWidth, footerH, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.0);
+  doc.setTextColor(255, 255, 255);
+  doc.text(
+    cardValidityText,
+    x + cardWidth / 2,
+    footerY + 2.7,
+    { align: 'center' }
   );
 
-  if (qrDataUrl) {
-    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
-  }
-
-  doc.setFontSize(4);
-  doc.setFont(fontDef.jsPdfFont, 'bold');
-  doc.setTextColor(30, 41, 59);
-  doc.text('SCAN UNTUK PRESENSI', qrX + qrSize / 2, qrY + qrSize + 3.6, {
-    align: 'center',
-  });
-
-  // 7. Outer stroke card border
+  // Outer Card Border
   doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.35);
+  doc.setLineWidth(0.3);
   doc.roundedRect(x, y, cardWidth, cardHeight, 2.5, 2.5, 'D');
 };

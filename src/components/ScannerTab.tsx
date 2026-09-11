@@ -12,10 +12,16 @@ interface ScannerTabProps {
   teachers?: Teacher[];
   currentTeacher?: Teacher | null;
   onSelectTeacher?: (teacher: Teacher) => void;
-  onRecordAttendance: (student: Student, scannedVia: 'QR Camera' | 'Manual Input' | 'Simulator') => {
+  onRecordAttendance: (
+    student: Student,
+    scannedVia: 'QR Camera' | 'Manual Input' | 'Simulator',
+    customDate?: string
+  ) => {
     record: AttendanceRecord;
     isDuplicate: boolean;
   };
+  onManualSyncCloud?: () => Promise<void>;
+  isSyncingCloud?: boolean;
 }
 
 export const ScannerTab: React.FC<ScannerTabProps> = ({
@@ -25,6 +31,8 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
   currentTeacher,
   onSelectTeacher,
   onRecordAttendance,
+  onManualSyncCloud,
+  isSyncingCloud = false,
 }) => {
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
@@ -68,6 +76,41 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
     return 'prompt';
   }, []);
 
+  // Date selection state for scanner
+  const getTodayISO = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getYesterdayISO = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayISO());
+
+  const formatIndonesianDate = (dateStr: string) => {
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      return dateObj.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Process a scanned payload (from camera, file, or manual input) with scan throttling
   const processPayload = useCallback(
     (rawText: string, via: 'QR Camera' | 'Manual Input' | 'Simulator') => {
@@ -95,11 +138,11 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
       }
 
       setScanError('');
-      const { record, isDuplicate } = onRecordAttendance(student, via);
+      const { record, isDuplicate } = onRecordAttendance(student, via, selectedDate);
       playScanBeep(!isDuplicate);
       setLastScanResult({ student, record, isDuplicate });
     },
-    [students, onRecordAttendance]
+    [students, onRecordAttendance, selectedDate]
   );
 
   // Fetch camera devices silently without showing intrusive errors on load
@@ -454,6 +497,102 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
         );
       })()}
 
+      {/* Date Picker and Cloud Persistence Toolbar */}
+      <div className="bento-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl space-y-3 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Date Picker Section */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold">
+                <i className="fa-solid fa-calendar-day"></i>
+              </div>
+              <div>
+                <label htmlFor="scanner-date-picker" className="text-xs font-black text-slate-900 dark:text-white block">
+                  Tanggal Presensi:
+                </label>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  {formatIndonesianDate(selectedDate)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="scanner-date-picker"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedDate(getTodayISO())}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  selectedDate === getTodayISO()
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                Hari Ini
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(getYesterdayISO())}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  selectedDate === getYesterdayISO()
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                Kemarin
+              </button>
+            </div>
+          </div>
+
+          {/* Cloud Persistence / Backup Safety Button */}
+          {onManualSyncCloud && (
+            <div className="flex items-center gap-2 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={onManualSyncCloud}
+                disabled={isSyncingCloud}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                title="Simpan & pastikan semua data tersinkron ke Cloud Firestore sebelum membersihkan browser"
+              >
+                <i className={`fa-solid ${isSyncingCloud ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'} text-xs`}></i>
+                <span>{isSyncingCloud ? 'Menyimpan ke Cloud...' : 'Simpan Semua ke Cloud'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Warning if date is not today */}
+        {selectedDate !== getTodayISO() && (
+          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 font-medium">
+            <div className="flex items-center gap-2">
+              <i className="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>
+              <span>
+                <strong>Mode Tanggal Khusus Aktif:</strong> Scan kamera atau input NIS saat ini akan mencatat kehadiran untuk tanggal <strong>{formatIndonesianDate(selectedDate)}</strong>.
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedDate(getTodayISO())}
+              className="text-xs font-bold text-amber-900 dark:text-amber-100 underline hover:no-underline cursor-pointer shrink-0 ml-2"
+            >
+              Kembalikan ke Hari Ini &rarr;
+            </button>
+          </div>
+        )}
+
+        {/* Browser Cache Safety Note */}
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-xl">
+          <i className="fa-solid fa-shield-halved text-emerald-600 text-xs"></i>
+          <span>
+            <strong>Perlindungan Data Riwayat Browser:</strong> Setiap absensi otomatis tersimpan ke Cloud Firestore. Anda dapat mengklik tombol <em>"Simpan Semua ke Cloud"</em> sebelum membersihkan riwayat/cache browser agar 100% data tersinkron aman.
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Interactive Scanner Area (2 Cols) */}
         <div className="lg:col-span-2 bento-card flex flex-col items-center">
@@ -663,7 +802,7 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
             <div>
               {lastScanResult.isDuplicate ? (
                 <span className="status-badge status-late">
-                  <i className="fa-solid fa-triangle-exclamation"></i> SUDAH ABSEN HARI INI
+                  <i className="fa-solid fa-triangle-exclamation"></i> SUDAH ABSEN PADA TANGGAL {lastScanResult.record.date}
                 </span>
               ) : lastScanResult.record.status === 'Hadir' ? (
                 <span className="status-badge status-present">
@@ -692,17 +831,34 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
 
               <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-xl text-left text-xs border border-slate-200 shadow-2xs">
                 <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">Tanggal Presensi</span>
+                  <span className="font-mono font-extrabold text-indigo-600">
+                    {lastScanResult.record.date}
+                  </span>
+                </div>
+                <div>
                   <span className="text-[10px] text-slate-400 font-bold block">Jam Masuk</span>
                   <span className="font-mono font-extrabold text-emerald-600">
                     {lastScanResult.record.time} WIB
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 font-bold block">Metode</span>
+                  <span className="text-[10px] text-slate-400 font-bold block">Metode Scan</span>
                   <span className="font-semibold text-slate-700">
                     {lastScanResult.record.scannedVia}
                   </span>
                 </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">Petugas Absen</span>
+                  <span className="font-semibold text-slate-700 truncate block">
+                    {lastScanResult.record.teacherName || 'Guru Petugas'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 py-1.5 px-2.5 rounded-lg border border-emerald-100">
+                <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
+                <span>Tersimpan aman di Cloud Firestore</span>
               </div>
 
               {/* WhatsApp Notification Action Box */}
