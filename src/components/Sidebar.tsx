@@ -15,6 +15,7 @@ interface SidebarProps {
   onOpenGuide?: () => void;
   onOpenAnnouncement?: () => void;
   onOpenERaporSync?: () => void;
+  onShareLink?: () => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGuide,
   onOpenAnnouncement,
   onOpenERaporSync,
+  onShareLink,
   isOpenMobile = false,
   onCloseMobile,
 }) => {
@@ -255,6 +257,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <i className="fa-solid fa-cloud-arrow-up text-emerald-400 text-sm w-4 text-center"></i>
               <span className="truncate">Cloud Sync & Backup</span>
             </button>
+
+            {onShareLink && (
+              <button
+                type="button"
+                onClick={() => {
+                  onShareLink();
+                  if (onCloseMobile) onCloseMobile();
+                }}
+                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold text-amber-200 bg-amber-950/60 hover:bg-amber-900/80 border border-amber-700/60 transition-colors cursor-pointer shadow-2xs"
+                title="Salin tautan aplikasi khusus rekan guru (penerima otomatis dalam keadaan logout untuk menjaga data admin)"
+              >
+                <i className="fa-solid fa-share-nodes text-amber-400 text-sm w-4 text-center"></i>
+                <span className="truncate">Bagikan Link ke Guru</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

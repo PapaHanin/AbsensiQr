@@ -271,6 +271,39 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
             )}
 
+            {/* Quick Teacher Account Selector */}
+            {teachers && teachers.length > 0 && (
+              <div className="mb-4 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-users text-indigo-600 dark:text-indigo-400 text-xs"></i>
+                    <span>Pilih Akun Guru Anda (Cepat):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Isi email otomatis</span>
+                </label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setEmailInput(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                      // Automatically focus the PIN input
+                      const pinEl = document.getElementById(`login-pin-input-${modalId}`);
+                      if (pinEl) pinEl.focus();
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- Pilih Nama Guru Anda --</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.email}>
+                      {t.name} ({t.role === 'admin' ? 'Administrator' : t.teacherType === 'wali_kelas' ? (t.homeroomClass ? `Wali ${t.homeroomClass}` : 'Wali Kelas') : `Mapel ${t.subject || ''}`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Email & PIN Login Form */}
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>

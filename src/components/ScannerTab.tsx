@@ -429,11 +429,60 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
 
       {/* Active Teacher Banner */}
       {(() => {
-        const activeT =
-          currentTeacher ||
-          teachers.find((t) => t.role === 'admin' || t.teacherType === 'admin') ||
-          teachers[0];
-        if (!activeT) return null;
+        if (!currentTeacher) {
+          return (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
+                  <i className="fa-solid fa-user-lock"></i>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-400 block leading-tight">
+                    Status Akun Petugas:
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap mt-0.5">
+                    <span>Pengguna Tamu (Belum Masuk Akun Guru)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                      Mode Tamu
+                    </span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                    Silakan pilih nama Anda atau masuk melalui menu di bilah samping agar nama Anda tercatat sebagai guru pengabsen.
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Switch Teacher Selector */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {teachers && teachers.length > 0 && onSelectTeacher && (
+                  <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 border border-amber-300 dark:border-amber-800 px-3 py-1.5 rounded-xl shadow-2xs">
+                    <label htmlFor="active-scanner-teacher-select" className="text-[11px] font-bold text-amber-900 dark:text-amber-200 whitespace-nowrap">
+                      Pilih Guru:
+                    </label>
+                    <select
+                      id="active-scanner-teacher-select"
+                      value=""
+                      onChange={(e) => {
+                        const selected = teachers.find((t) => t.id === e.target.value);
+                        if (selected) onSelectTeacher(selected);
+                      }}
+                      className="text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none cursor-pointer"
+                    >
+                      <option value="" disabled>-- Pilih Guru Pengabsen --</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id} className="text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900">
+                          {t.name} ({t.role === 'admin' ? 'Administrator' : t.teacherType === 'wali_kelas' ? (t.homeroomClass ? `Wali ${t.homeroomClass}` : 'Wali Kelas') : `Mapel ${t.subject || ''}`})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        const activeT = currentTeacher;
 
         return (
           <div className="bg-linear-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-800/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">

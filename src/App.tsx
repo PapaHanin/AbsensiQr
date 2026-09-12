@@ -233,8 +233,26 @@ export default function App() {
     }
   });
 
-  // Currently logged-in Teacher (defaults to admin MOH. FADLI if not explicitly logged in)
+  // Currently logged-in Teacher (defaults to null / logged out to protect admin data when link is shared)
   const [currentTeacher, setCurrentTeacher] = useState<Teacher | null>(() => {
+    // If URL has ?logout=1 or ?logout=true or ?guest=1, force logout and clear stored session
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (
+          urlParams.get('logout') === 'true' ||
+          urlParams.get('logout') === '1' ||
+          urlParams.has('logout') ||
+          urlParams.get('guest') === '1'
+        ) {
+          safeRemoveItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER);
+          return null;
+        }
+      } catch {
+        // Fallback for searchParams
+      }
+    }
+
     try {
       const saved = safeGetItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER);
       if (saved) {
@@ -246,10 +264,11 @@ export default function App() {
           return parsed;
         }
       }
-      return INITIAL_TEACHERS[0] || null;
+      // Fresh visitors or shared links always start in logged-out state
+      return null;
     } catch (e) {
       console.warn('Failed to parse current teacher from localStorage:', e);
-      return INITIAL_TEACHERS[0] || null;
+      return null;
     }
   });
 
@@ -656,6 +675,44 @@ export default function App() {
     setCurrentTeacher(null);
     safeRemoveItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER);
     addToast('Berhasil Keluar', `Anda telah keluar dari akun ${prevName}.`, 'info');
+  };
+
+  // Share link handler for teachers (guarantees shared URL forces logged-out guest state)
+  const handleShareTeacherLink = async () => {
+    let shareUrl = window.location.origin + window.location.pathname;
+    // Add ?logout=true so that recipient device explicitly starts in logged-out mode
+    shareUrl += '?logout=true';
+
+    const shareData = {
+      title: 'Presensi Digital Siswa - SD Inpres 2 Ulatan',
+      text: 'Link Presensi Digital Siswa SD Inpres 2 Ulatan untuk Dewan Guru (Otomatis Logout/Guest untuk Keamanan):',
+      url: shareUrl,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        addToast(
+          'Link Dibagikan',
+          'Link aplikasi untuk dewan guru berhasil dibuka di menu bagikan (otomatis dalam keadaan logout demi keamanan data Admin).',
+          'success'
+        );
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      addToast(
+        'Link Guru Disalin',
+        'Link aplikasi untuk dewan guru berhasil disalin! Saat dibuka rekan guru, sistem otomatis dalam keadaan LOGOUT untuk menjaga data Admin.',
+        'success'
+      );
+    } catch {
+      window.prompt('Salin link untuk rekan guru (otomatis dalam keadaan logout):', shareUrl);
+    }
   };
 
   // Add Teacher Handler (by Admin)
@@ -1213,11 +1270,16 @@ export default function App() {
     addToast('Siswa Dihapus', `${ids.length} siswa berhasil dihapus secara permanen.`, 'info');
   };
 
-  // Reset data for the school
+  // Reset data for the school (Protected: Admin Only)
   const handleResetData = () => {
+    if (currentTeacher?.role !== 'admin') {
+      addToast('Akses Ditolak', 'Hanya Administrator yang memiliki wewenang untuk mereset database sekolah.', 'error');
+      return;
+    }
+
     setStudents(INITIAL_STUDENTS);
     setTeachers(INITIAL_TEACHERS);
-    setCurrentTeacher(INITIAL_TEACHERS[0]);
+    setCurrentTeacher(null);
     setSettings(DEFAULT_SETTINGS);
     setAttendanceRecords([]);
     setScheduledLeaves([]);
@@ -1228,11 +1290,12 @@ export default function App() {
     safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
     safeSetItem(LOCAL_STORAGE_KEYS.LEAVES, JSON.stringify([]));
     safeSetItem(LOCAL_STORAGE_KEYS.BEHAVIOR_LOGS, JSON.stringify([]));
+    safeRemoveItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER);
     saveSettingsToFirestore(DEFAULT_SETTINGS, DEFAULT_PRIMARY_SCHOOL_ID).catch((e) => console.warn(e));
     addToast('Reset Berhasil', 'Semua data sekolah berhasil direset ke data awal.', 'info');
   };
 
-  // Restore Data Handler for Cloud Sync / JSON File Import
+  // Restore Data Handler for Cloud Sync / JSON File Import (Protected: Admin Only)
   const handleRestoreData = (restored: {
     students: Student[];
     attendanceRecords: AttendanceRecord[];
@@ -1240,6 +1303,10 @@ export default function App() {
     teachers: Teacher[];
     schools?: School[];
   }) => {
+    if (currentTeacher?.role !== 'admin') {
+      addToast('Akses Ditolak', 'Hanya Administrator yang berhak memulihkan atau menimpa database sekolah.', 'error');
+      return;
+    }
     const targetSchoolId = DEFAULT_PRIMARY_SCHOOL_ID;
 
     // Normalize all items with consistent IDs and schoolId
@@ -1371,6 +1438,7 @@ export default function App() {
           onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
           onOpenAnnouncement={handleOpenAnnouncement}
           onOpenERaporSync={() => setIsERaporSyncModalOpen(true)}
+          onShareLink={handleShareTeacherLink}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
@@ -1383,6 +1451,7 @@ export default function App() {
             onToggleDarkMode={handleToggleDarkMode}
             onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
             currentSchoolName={settings.schoolName || 'SD INPRES 2 ULATAN'}
+            onShareLink={handleShareTeacherLink}
           />
 
           {/* Toast Notifications */}
@@ -1423,7 +1492,13 @@ export default function App() {
                 teachers={effectiveTeachers}
                 currentTeacher={currentTeacher}
                 onSelectTeacher={(t) => {
+                  if (t.role === 'admin' || t.id === 'tch-admin') {
+                    setIsLoginModalOpen(true);
+                    addToast('PIN Admin Diperlukan', 'Untuk masuk ke akun Administrator, silakan masukkan PIN Admin.', 'warning');
+                    return;
+                  }
                   setCurrentTeacher(t);
+                  safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(t));
                   addToast('Guru Pengabsen Diubah', `Petugas pengabsen aktif: ${t.name}`, 'info');
                 }}
                 onRecordAttendance={handleRecordAttendance}
@@ -1490,7 +1565,7 @@ export default function App() {
         )}
 
         {/* Teacher Management Modal for Admin */}
-        {isTeacherModalOpen && (
+        {isTeacherModalOpen && currentTeacher?.role === 'admin' && (
           <TeacherManagementModal
             teachers={effectiveTeachers}
             currentTeacher={currentTeacher}
@@ -1502,7 +1577,7 @@ export default function App() {
         )}
 
         {/* Admin Profile & School Data Customization Modal */}
-        {isAdminProfileModalOpen && currentTeacher && (
+        {isAdminProfileModalOpen && currentTeacher?.role === 'admin' && (
           <AdminProfileModal
             currentTeacher={currentTeacher}
             settings={settings}

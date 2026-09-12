@@ -553,22 +553,35 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
             </div>
           </div>
 
-          {/* Reset Database Box */}
-          <div className="bento-card border-rose-200 bg-rose-50/30 space-y-3">
-            <h3 className="text-sm font-extrabold text-rose-700 flex items-center gap-2">
-              <i className="fa-solid fa-triangle-exclamation"></i>
-              <span>Reset Data ke Awal (Demo)</span>
-            </h3>
-            <p className="text-xs text-slate-500">
-              Mengembalikan seluruh data siswa dan riwayat absensi ke data dummy sampel awal.
-            </p>
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              className="w-full py-2 bg-rose-100 hover:bg-rose-600 text-rose-800 hover:text-white border border-rose-200 font-bold text-xs rounded-xl cursor-pointer transition-all"
-            >
-              Reset Data Sampel
-            </button>
-          </div>
+          {/* Reset Database Box - Only for Admin */}
+          {isAdmin ? (
+            <div className="bento-card border-rose-200 bg-rose-50/30 space-y-3">
+              <h3 className="text-sm font-extrabold text-rose-700 flex items-center gap-2">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+                <span>Reset Data ke Awal (Demo)</span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Mengembalikan seluruh data siswa dan riwayat absensi ke data dummy sampel awal.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                className="w-full py-2 bg-rose-100 hover:bg-rose-600 text-rose-800 hover:text-white border border-rose-200 font-bold text-xs rounded-xl cursor-pointer transition-all"
+              >
+                Reset Data Sampel
+              </button>
+            </div>
+          ) : (
+            <div className="bento-card border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-3.5 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                <i className="fa-solid fa-lock text-amber-500"></i>
+                <span>Reset Database Terkunci</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Hanya Administrator Sekolah yang memiliki wewenang untuk mereset basis data.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
