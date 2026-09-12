@@ -1491,16 +1491,8 @@ export default function App() {
                 settings={settings}
                 teachers={effectiveTeachers}
                 currentTeacher={currentTeacher}
-                onSelectTeacher={(t) => {
-                  if (t.role === 'admin' || t.id === 'tch-admin') {
-                    setIsLoginModalOpen(true);
-                    addToast('PIN Admin Diperlukan', 'Untuk masuk ke akun Administrator, silakan masukkan PIN Admin.', 'warning');
-                    return;
-                  }
-                  setCurrentTeacher(t);
-                  safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(t));
-                  addToast('Guru Pengabsen Diubah', `Petugas pengabsen aktif: ${t.name}`, 'info');
-                }}
+                onOpenLogin={() => setIsLoginModalOpen(true)}
+                onLogout={handleTeacherLogout}
                 onRecordAttendance={handleRecordAttendance}
                 onManualSyncCloud={handleManualSyncCloud}
                 isSyncingCloud={isSyncingCloud}

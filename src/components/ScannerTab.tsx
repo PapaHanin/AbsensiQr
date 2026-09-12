@@ -11,7 +11,8 @@ interface ScannerTabProps {
   settings: SystemSettings;
   teachers?: Teacher[];
   currentTeacher?: Teacher | null;
-  onSelectTeacher?: (teacher: Teacher) => void;
+  onOpenLogin?: () => void;
+  onLogout?: () => void;
   onRecordAttendance: (
     student: Student,
     scannedVia: 'QR Camera' | 'Manual Input' | 'Simulator',
@@ -27,9 +28,9 @@ interface ScannerTabProps {
 export const ScannerTab: React.FC<ScannerTabProps> = ({
   students,
   settings,
-  teachers = [],
   currentTeacher,
-  onSelectTeacher,
+  onOpenLogin,
+  onLogout,
   onRecordAttendance,
   onManualSyncCloud,
   isSyncingCloud = false,
@@ -452,30 +453,17 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
                 </div>
               </div>
 
-              {/* Quick Switch Teacher Selector */}
+              {/* Action Button: Login with Email and PIN */}
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                {teachers && teachers.length > 0 && onSelectTeacher && (
-                  <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 border border-amber-300 dark:border-amber-800 px-3 py-1.5 rounded-xl shadow-2xs">
-                    <label htmlFor="active-scanner-teacher-select" className="text-[11px] font-bold text-amber-900 dark:text-amber-200 whitespace-nowrap">
-                      Pilih Guru:
-                    </label>
-                    <select
-                      id="active-scanner-teacher-select"
-                      value=""
-                      onChange={(e) => {
-                        const selected = teachers.find((t) => t.id === e.target.value);
-                        if (selected) onSelectTeacher(selected);
-                      }}
-                      className="text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none cursor-pointer"
-                    >
-                      <option value="" disabled>-- Pilih Guru Pengabsen --</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id} className="text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900">
-                          {t.name} ({t.role === 'admin' ? 'Administrator' : t.teacherType === 'wali_kelas' ? (t.homeroomClass ? `Wali ${t.homeroomClass}` : 'Wali Kelas') : `Mapel ${t.subject || ''}`})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {onOpenLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  >
+                    <i className="fa-solid fa-right-to-bracket"></i>
+                    <span>Masuk Akun Guru (Email & PIN)</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -517,29 +505,29 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
               </div>
             </div>
 
-            {/* Quick Switch Teacher Selector */}
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              {teachers && teachers.length > 0 && onSelectTeacher && (
-                <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-xl shadow-2xs">
-                  <label htmlFor="active-scanner-teacher-select" className="text-[11px] font-bold text-indigo-900 dark:text-indigo-200 whitespace-nowrap">
-                    Ganti Guru:
-                  </label>
-                  <select
-                    id="active-scanner-teacher-select"
-                    value={activeT.id}
-                    onChange={(e) => {
-                      const selected = teachers.find((t) => t.id === e.target.value);
-                      if (selected) onSelectTeacher(selected);
-                    }}
-                    className="text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none cursor-pointer"
-                  >
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id} className="text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900">
-                        {t.name} ({t.teacherType === 'wali_kelas' ? (t.homeroomClass ? `Wali ${t.homeroomClass}` : 'Wali Kelas') : t.teacherType === 'guru_mapel' ? `Mapel ${t.subject || ''}` : 'Admin'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Authenticated Switch or Logout Actions */}
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              {onOpenLogin && (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white/90 dark:bg-slate-900/90 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Ganti ke akun guru lain dengan memasukkan Email dan PIN"
+                >
+                  <i className="fa-solid fa-user-lock text-xs"></i>
+                  <span>Ganti Akun</span>
+                </button>
+              )}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/80 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/80 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Keluar dari sesi akun saat ini"
+                >
+                  <i className="fa-solid fa-right-from-bracket text-xs"></i>
+                  <span>Keluar</span>
+                </button>
               )}
             </div>
           </div>
