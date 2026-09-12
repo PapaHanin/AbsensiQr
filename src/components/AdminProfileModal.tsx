@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Teacher, SystemSettings, isSuperAdminEmail, SUPER_ADMIN_EMAIL } from '../types';
+import { Teacher, SystemSettings } from '../types';
 
 interface AdminProfileModalProps {
   currentTeacher: Teacher;
@@ -33,8 +33,6 @@ export const AdminProfileModal: React.FC<AdminProfileModalProps> = ({
   const [headmasterNip, setHeadmasterNip] = useState(settings.headmasterNip || '19680512 199403 1 005');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const isCurrentSuperAdmin = isSuperAdminEmail(currentTeacher?.email);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -46,12 +44,6 @@ export const AdminProfileModal: React.FC<AdminProfileModalProps> = ({
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPin = pin.trim() || '1234';
-
-    // Prevent non-super-admins from stealing or claiming super admin email
-    if (!isCurrentSuperAdmin && cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      setErrorMessage(`Email "${SUPER_ADMIN_EMAIL}" adalah hak khusus Super Administrator Pusat.`);
-      return;
-    }
 
     // Update current admin profile
     onUpdateTeacher({

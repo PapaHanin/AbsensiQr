@@ -4,7 +4,7 @@ import {
   initializeFirestore,
   getFirestore,
   doc,
-  getDocFromServer,
+  getDoc,
 } from 'firebase/firestore';
 import firebaseConfigDefault from '../firebase-applet-config.json';
 
@@ -24,13 +24,13 @@ const app = getApps().length > 0 ? getApp() : initializeApp(activeFirebaseConfig
 
 const databaseId = activeFirebaseConfig.firestoreDatabaseId || undefined;
 
-// Initialize Firestore with auto-detect long polling for robust cloud / iframe connectivity
+// Initialize Firestore with force long polling for rock-solid iframe/proxy/Cloud Run connectivity without connection drops
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(
     app,
     {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       ignoreUndefinedProperties: true,
     },
     databaseId
@@ -90,37 +90,14 @@ export function setCustomIIHHBeresDatabaseId(dbId: string): void {
  */
 const firestoreInstancesCache = new Map<string, any>();
 
-// Target Firestore instance for e-Rapor Merdeka (iihh Beres SD Inpres 2 Ulatan)
-let iihhBeresInstance: any = null;
-try {
-  iihhBeresInstance = initializeFirestore(
-    app,
-    {
-      experimentalAutoDetectLongPolling: true,
-      ignoreUndefinedProperties: true,
-    },
-    IIHH_BERES_DATABASE_ID
-  );
-} catch {
-  iihhBeresInstance = getFirestore(app, IIHH_BERES_DATABASE_ID);
-}
-
-if (iihhBeresInstance) {
-  firestoreInstancesCache.set(IIHH_BERES_DATABASE_ID, iihhBeresInstance);
-}
-
-export const iihhBeresDb = iihhBeresInstance;
+let _cachedIIHHBeresInstance: any = null;
 
 /**
- * Returns the Firestore instance for IIH Beres, or null if unconfigured.
+ * Returns the Firestore instance for IIH Beres, lazily initialized.
  */
 export function getIIHHBeresFirestoreInstance(): any {
   const targetDbId = getCustomIIHHBeresDatabaseId();
   if (!targetDbId) return null;
-
-  if (targetDbId === IIHH_BERES_DATABASE_ID && iihhBeresInstance) {
-    return iihhBeresInstance;
-  }
 
   if (firestoreInstancesCache.has(targetDbId)) {
     return firestoreInstancesCache.get(targetDbId);
@@ -131,7 +108,7 @@ export function getIIHHBeresFirestoreInstance(): any {
     instance = initializeFirestore(
       app,
       {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         ignoreUndefinedProperties: true,
       },
       targetDbId
@@ -140,9 +117,24 @@ export function getIIHHBeresFirestoreInstance(): any {
     instance = getFirestore(app, targetDbId);
   }
 
-  firestoreInstancesCache.set(targetDbId, instance);
+  if (instance) {
+    firestoreInstancesCache.set(targetDbId, instance);
+    if (targetDbId === IIHH_BERES_DATABASE_ID) {
+      _cachedIIHHBeresInstance = instance;
+    }
+  }
   return instance;
 }
+
+// Proxy/getter for backwards compatibility
+export const iihhBeresDb = new Proxy({} as any, {
+  get(_target, prop) {
+    if (!_cachedIIHHBeresInstance) {
+      _cachedIIHHBeresInstance = getIIHHBeresFirestoreInstance();
+    }
+    return _cachedIIHHBeresInstance ? (_cachedIIHHBeresInstance as any)[prop] : undefined;
+  },
+});
 
 export enum OperationType {
   CREATE = 'create',
@@ -196,16 +188,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
  */
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDoc(doc(db, 'test', 'connection'));
     return true;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('offline') || msg.includes('unavailable') || msg.includes('failed to connect')) {
-      console.info('Firestore client is connecting or in offline cache mode.');
-      return false;
-    }
-    // Expected if 'test/connection' does not exist but server responded
-    return true;
+  } catch {
+    return false;
   }
 }
 

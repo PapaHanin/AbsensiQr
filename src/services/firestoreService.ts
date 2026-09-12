@@ -120,6 +120,23 @@ export async function seedInitialSchoolsIfEmpty(): Promise<void> {
 }
 
 /**
+ * Fetches all students directly from Firestore once
+ */
+export async function fetchAllStudentsFromFirestore(): Promise<Student[]> {
+  try {
+    const snap = await getDocs(collection(db, COLLECTIONS.STUDENTS));
+    const items: Student[] = [];
+    snap.forEach((docSnap) => {
+      items.push(docSnap.data() as Student);
+    });
+    return items;
+  } catch (error) {
+    console.warn('fetchAllStudentsFromFirestore notice:', error);
+    return [];
+  }
+}
+
+/**
  * Subscribes to real-time updates for Students
  */
 export function subscribeToStudents(
@@ -262,6 +279,23 @@ export async function syncAllTeachersToFirestore(teachers: Teacher[]): Promise<v
 }
 
 /**
+ * Fetches all attendance records directly from Firestore once
+ */
+export async function fetchAllAttendanceFromFirestore(): Promise<AttendanceRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, COLLECTIONS.ATTENDANCE));
+    const items: AttendanceRecord[] = [];
+    snap.forEach((docSnap) => {
+      items.push(docSnap.data() as AttendanceRecord);
+    });
+    return items;
+  } catch (error) {
+    console.warn('fetchAllAttendanceFromFirestore notice:', error);
+    return [];
+  }
+}
+
+/**
  * Subscribes to real-time updates for Attendance Records
  */
 export function subscribeToAttendance(
@@ -306,6 +340,23 @@ export async function deleteAttendanceFromFirestore(recordId: string): Promise<v
     await deleteDoc(doc(db, COLLECTIONS.ATTENDANCE, recordId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Fetches all teachers directly from Firestore once
+ */
+export async function fetchAllTeachersFromFirestore(): Promise<Teacher[]> {
+  try {
+    const snap = await getDocs(collection(db, COLLECTIONS.TEACHERS));
+    const items: Teacher[] = [];
+    snap.forEach((docSnap) => {
+      items.push(docSnap.data() as Teacher);
+    });
+    return items;
+  } catch (error) {
+    console.warn('fetchAllTeachersFromFirestore notice:', error);
+    return [];
   }
 }
 

@@ -163,51 +163,71 @@ service cloud.firestore {
 
     // Schools Collection (Multi-Sekolah Multi-Tenant)
     match /schools/{schoolId} {
-      allow read, write: if isValidId(schoolId);
+      allow read: if true;
+      allow create, update: if isValidId(schoolId);
+      allow delete: if isValidId(schoolId);
     }
 
     // Students Collection
     match /students/{studentId} {
-      allow read, write: if isValidId(studentId);
+      allow read: if true;
+      allow create, update: if isValidId(studentId);
+      allow delete: if isValidId(studentId);
     }
 
     // Data Siswa Collections (alias used in e-Rapor / iihh Beres)
     match /data_siswa/{studentId} {
-      allow read, write: if isValidId(studentId);
+      allow read: if true;
+      allow create, update: if isValidId(studentId);
+      allow delete: if isValidId(studentId);
     }
 
     match /siswa/{studentId} {
-      allow read, write: if isValidId(studentId);
+      allow read: if true;
+      allow create, update: if isValidId(studentId);
+      allow delete: if isValidId(studentId);
     }
 
     // Attendance Collection
     match /attendance/{recordId} {
-      allow read, write: if isValidId(recordId);
+      allow read: if true;
+      allow create, update: if isValidId(recordId);
+      allow delete: if isValidId(recordId);
     }
 
     // Teachers Collection
     match /teachers/{teacherId} {
-      allow read, write: if isValidId(teacherId);
+      allow read: if true;
+      allow create, update: if isValidId(teacherId);
+      allow delete: if isValidId(teacherId);
     }
 
     // Settings Collection
     match /settings/{settingId} {
-      allow read, write: if isValidId(settingId);
+      allow read: if true;
+      allow create, update: if isValidId(settingId);
+      allow delete: if isValidId(settingId);
     }
 
     // Cloud Sync Collection
     match /cloud_sync/{syncCode} {
-      allow read, write: if isValidId(syncCode);
+      allow read: if true;
+      allow create, update: if isValidId(syncCode);
+      allow delete: if isValidId(syncCode);
     }
 
     // Scheduled Leaves Collection (Izin / Sakit multi-hari)
     match /leaves/{leaveId} {
-      allow read, write: if isValidId(leaveId);
+      allow read: if true;
+      allow create, update: if isValidId(leaveId);
+      allow delete: if isValidId(leaveId);
     }
 
     // Student Behavior Logs Collection (Catatan Karakter, Kebaikan & Pelanggaran)
     match /behavior_logs/{logId} {
-      allow read, write: if isValidId(logId);
+      allow read: if true;
+      allow create, update: if isValidId(logId);
+      allow delete: if isValidId(logId);
     }
 
     // e-Rapor Merdeka Semester Recap Collection (SD Inpres 2 Ulatan)

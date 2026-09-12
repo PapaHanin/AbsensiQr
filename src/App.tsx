@@ -11,7 +11,6 @@ import {
   ScheduledLeave,
   BehaviorLog,
   School,
-  isSuperAdminEmail,
 } from './types';
 import { formatClassLabel } from './utils/classUtils';
 import {
@@ -37,7 +36,6 @@ import { GuideModal } from './components/GuideModal';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { DapodikAnnouncementModal, CURRENT_ANNOUNCEMENT_VERSION } from './components/DapodikAnnouncementModal';
 import { ERaporSyncModal } from './components/ERaporSyncModal';
-import { SchoolManagementModal } from './components/SchoolManagementModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { testFirestoreConnection, setCustomIIHHBeresDatabaseId } from './firebase';
 import {
@@ -67,6 +65,9 @@ import {
   saveBehaviorLogToFirestore,
   deleteBehaviorLogFromFirestore,
   seedInitialFirestoreDataIfEmpty,
+  fetchAllTeachersFromFirestore,
+  fetchAllAttendanceFromFirestore,
+  fetchAllStudentsFromFirestore,
 } from './services/firestoreService';
 import { safeSetItem, safeGetItem, safeRemoveItem, cleanStaleLocalStorage } from './utils/storage';
 import { isHomeroomClassMatch, resolveRecordTeacher } from './utils/classUtils';
@@ -114,8 +115,6 @@ export default function App() {
       return DEFAULT_PRIMARY_SCHOOL_ID;
     }
   });
-
-  const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
 
   // Settings state with safe JSON parse
   const [settings, setSettings] = useState<SystemSettings>(() => {
@@ -201,7 +200,7 @@ export default function App() {
         if (t.id === 'tch-admin' && (t.name === 'Budi Santoso, S.Pd.SD' || !t.name)) {
           return INITIAL_TEACHERS[0];
         }
-        if (isSuperAdminEmail(t.email) || t.id === 'tch-admin') {
+        if (t.id === 'tch-admin' || t.email?.toLowerCase() === 'fadli46046@gmail.com') {
           return { ...t, pin: 'Hanin231221' };
         }
         return t;
@@ -241,7 +240,7 @@ export default function App() {
       if (saved) {
         const parsed: Teacher = JSON.parse(saved);
         if (parsed && parsed.id) {
-          if (isSuperAdminEmail(parsed.email) || parsed.id === 'tch-admin') {
+          if (parsed.id === 'tch-admin' || parsed.email?.toLowerCase() === 'fadli46046@gmail.com') {
             return { ...parsed, pin: 'Hanin231221' };
           }
           return parsed;
@@ -253,9 +252,6 @@ export default function App() {
       return INITIAL_TEACHERS[0] || null;
     }
   });
-
-  // Super Admin check for fadli46046@gmail.com
-  const isSuperAdmin = isSuperAdminEmail(currentTeacher?.email);
 
   // Modals for Teacher Login, Management, Admin Profile, Guide, and Cloud Sync
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -416,6 +412,58 @@ export default function App() {
       console.warn('Firestore schools check notice:', err);
     });
 
+    // Immediate one-shot fetch from Firestore to ensure zero-latency data loading
+    fetchAllTeachersFromFirestore().then((remoteTeachers) => {
+      if (remoteTeachers && remoteTeachers.length > 0) {
+        setTeachers((prev) => {
+          const map = new Map<string, Teacher>();
+          prev.forEach((t) => map.set(t.id, t));
+          remoteTeachers.forEach((t) => {
+            const normalized: Teacher = { ...t, schoolId: t.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
+            map.set(normalized.id, normalized);
+          });
+          INITIAL_TEACHERS.forEach((t) => {
+            if (!map.has(t.id)) map.set(t.id, t);
+          });
+          const merged = Array.from(map.values());
+          safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(merged));
+          return merged;
+        });
+      }
+    }).catch(console.warn);
+
+    fetchAllAttendanceFromFirestore().then((remoteAttendance) => {
+      if (remoteAttendance && remoteAttendance.length > 0) {
+        setAttendanceRecords((prev) => {
+          const map = new Map<string, AttendanceRecord>();
+          prev.forEach((r) => map.set(r.id, r));
+          remoteAttendance.forEach((r) => {
+            const normalized: AttendanceRecord = { ...r, schoolId: r.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
+            map.set(normalized.id, normalized);
+          });
+          const merged = Array.from(map.values());
+          safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(merged));
+          return merged;
+        });
+      }
+    }).catch(console.warn);
+
+    fetchAllStudentsFromFirestore().then((remoteStudents) => {
+      if (remoteStudents && remoteStudents.length > 0) {
+        setStudents((prev) => {
+          const map = new Map<string, Student>();
+          prev.forEach((s) => map.set(s.id, s));
+          remoteStudents.forEach((s) => {
+            const normalized: Student = { ...s, schoolId: s.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
+            map.set(normalized.id, normalized);
+          });
+          const merged = Array.from(map.values());
+          safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(merged));
+          return merged;
+        });
+      }
+    }).catch(console.warn);
+
     // Subscribe to Firestore schools collection
     const unsubSchools = subscribeToSchools((fsSchools) => {
       if (fsSchools && fsSchools.length > 0) {
@@ -444,9 +492,10 @@ export default function App() {
         const prevMap = new Map<string, Student>();
         prev.forEach((s) => prevMap.set(s.id, s));
 
-        // Update/insert from Firestore
+        // Update/insert from Firestore with normalized schoolId
         fsStudents.forEach((s) => {
-          prevMap.set(s.id, s);
+          const normalized: Student = { ...s, schoolId: s.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
+          prevMap.set(normalized.id, normalized);
         });
 
         missing = prev.filter((p) => !fsStudents.some((f) => f.id === p.id));
@@ -472,7 +521,7 @@ export default function App() {
 
         fsRecords.forEach((r) => {
           const raw = (r.teacherName || '').trim().toLowerCase();
-          let record = r;
+          let record: AttendanceRecord = { ...r, schoolId: r.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
           if (
             !r.teacherName ||
             raw === 'petugas scanner' ||
@@ -482,7 +531,7 @@ export default function App() {
           ) {
             const resolved = resolveRecordTeacher(r, teachers, students, currentTeacher);
             record = {
-              ...r,
+              ...record,
               teacherName: resolved.name,
               teacherType: resolved.type,
               teacherSubject: resolved.subject,
@@ -513,12 +562,16 @@ export default function App() {
         prev.forEach((t) => prevMap.set(t.id, t));
 
         fsTeachers.forEach((t) => {
-          let teacherObj = t;
-          if ((isSuperAdminEmail(t.email) || t.id === 'tch-admin') && t.pin !== 'Hanin231221') {
-            teacherObj = { ...t, pin: 'Hanin231221' };
+          let teacherObj: Teacher = { ...t, schoolId: t.schoolId || DEFAULT_PRIMARY_SCHOOL_ID };
+          if ((t.id === 'tch-admin' || t.email?.toLowerCase() === 'fadli46046@gmail.com') && t.pin !== 'Hanin231221') {
+            teacherObj = { ...teacherObj, pin: 'Hanin231221' };
             saveTeacherToFirestore(teacherObj).catch(console.warn);
           }
           prevMap.set(teacherObj.id, teacherObj);
+        });
+
+        INITIAL_TEACHERS.forEach((t) => {
+          if (!prevMap.has(t.id)) prevMap.set(t.id, t);
         });
 
         missing = prev.filter((p) => !fsTeachers.some((f) => f.id === p.id));
@@ -567,150 +620,21 @@ export default function App() {
     };
   }, [todayStr]);
 
-  // Switch Active School Handler
-  const handleSelectSchool = useCallback(
-    (schoolId: string) => {
-      setCurrentSchoolId(schoolId);
-      const targetSchool = schools.find((s) => s.id === schoolId);
-      if (targetSchool) {
-        const newSettings: SystemSettings = {
-          ...settings,
-          schoolId: targetSchool.id,
-          schoolName: targetSchool.name,
-          schoolAddress: targetSchool.address,
-          schoolCity: targetSchool.city || 'Paser',
-          academicYear: targetSchool.academicYear,
-          lateCutoffTime: targetSchool.lateCutoffTime,
-          headmasterName: targetSchool.headmasterName || settings.headmasterName,
-          headmasterNip: targetSchool.headmasterNip || settings.headmasterNip,
-        };
-        setSettings(newSettings);
-        saveSettingsToFirestore(newSettings).catch((err) =>
-          console.warn('Failed to save settings for school switch:', err)
-        );
-
-        if (targetSchool.iihhBeresDatabaseId) {
-          setCustomIIHHBeresDatabaseId(targetSchool.iihhBeresDatabaseId);
-        }
-
-        addToast(
-          'Sekolah Aktif Diubah',
-          `Sekarang mengelola data untuk ${targetSchool.name}. Semua data otomatis disaring.`,
-          'success'
-        );
-      }
-    },
-    [schools, settings, addToast]
-  );
-
-  // Save / Add School Handler
-  const handleSaveSchool = useCallback(
-    async (schoolToSave: School, initialAdmin?: Omit<Teacher, 'id'>) => {
-      setSchools((prev) => {
-        const filtered = prev.filter((s) => s.id !== schoolToSave.id);
-        const updated = [schoolToSave, ...filtered];
-        safeSetItem(LOCAL_STORAGE_KEYS.SCHOOLS, JSON.stringify(updated));
-        return updated;
-      });
-      
-      saveSchoolToFirestore(schoolToSave).catch((err) => {
-        console.warn('Notice saving school to Firestore (persisted locally):', err);
-      });
-
-      if (initialAdmin) {
-        const newAdminTeacher: Teacher = {
-          ...initialAdmin,
-          schoolId: schoolToSave.id,
-          id: `tch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        };
-        setTeachers((prev) => {
-          const filtered = prev.filter((t) => t.email.toLowerCase() !== newAdminTeacher.email.toLowerCase());
-          const updated = [...filtered, newAdminTeacher];
-          safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
-          return updated;
-        });
-        saveTeacherToFirestore(newAdminTeacher).catch((err) =>
-          console.warn('Notice saving initial admin to Firestore (persisted locally):', err)
-        );
-      }
-
-      addToast(
-        'Data Sekolah Disimpan',
-        `${schoolToSave.name} (${schoolToSave.code}) berhasil disimpan.` +
-          (initialAdmin ? ` Akun Administrator (${initialAdmin.name}) telah otomatis dibuat.` : ''),
-        'success'
-      );
-    },
-    [addToast]
-  );
-
-  // Save/Update Admin for a specific school
-  const handleSaveSchoolAdmin = useCallback(
-    async (schoolId: string, adminData: Omit<Teacher, 'id'>) => {
-      const newAdminTeacher: Teacher = {
-        ...adminData,
-        schoolId,
-        id: `tch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      };
-      setTeachers((prev) => {
-        const filtered = prev.filter((t) => t.email.toLowerCase() !== newAdminTeacher.email.toLowerCase());
-        const updated = [...filtered, newAdminTeacher];
-        safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
-        return updated;
-      });
-      saveTeacherToFirestore(newAdminTeacher).catch((err) =>
-        console.warn('Notice saving admin to Firestore (persisted locally):', err)
-      );
-      addToast(
-        'Akun Admin Sekolah Disimpan',
-        `Akun ${newAdminTeacher.name} (${newAdminTeacher.email}) siap digunakan sebagai Admin Sekolah.`,
-        'success'
-      );
-    },
-    [addToast]
-  );
-
-  // Delete School Handler
-  const handleDeleteSchool = useCallback(
-    async (schoolId: string) => {
-      setSchools((prev) => prev.filter((s) => s.id !== schoolId));
-      await deleteSchoolFromFirestore(schoolId);
-      addToast('Sekolah Dihapus', 'Data instansi sekolah telah dihapus.', 'info');
-    },
-    [addToast]
-  );
-
   // Update Settings in State and Firestore
   const handleUpdateSettings = useCallback(
     (newSettings: SystemSettings) => {
       const scopedSettings: SystemSettings = {
         ...newSettings,
-        schoolId: currentSchoolId,
+        schoolId: DEFAULT_PRIMARY_SCHOOL_ID,
       };
       setSettings(scopedSettings);
-      saveSettingsToFirestore(scopedSettings, currentSchoolId).catch((err) =>
+      saveSettingsToFirestore(scopedSettings, DEFAULT_PRIMARY_SCHOOL_ID).catch((err) =>
         console.warn('Failed to sync settings to Firestore:', err)
       );
 
-      // Keep school profile in sync with updated settings
-      setSchools((prev) =>
-        prev.map((s) =>
-          s.id === currentSchoolId
-            ? {
-                ...s,
-                name: scopedSettings.schoolName,
-                address: scopedSettings.schoolAddress,
-                city: scopedSettings.schoolCity,
-                academicYear: scopedSettings.academicYear,
-                lateCutoffTime: scopedSettings.lateCutoffTime,
-                headmasterName: scopedSettings.headmasterName,
-                headmasterNip: scopedSettings.headmasterNip,
-              }
-            : s
-        )
-      );
+      safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(scopedSettings));
     },
-    [currentSchoolId]
+    []
   );
 
   // Teacher Login Handler
@@ -718,12 +642,6 @@ export default function App() {
     setCurrentTeacher(teacher);
     safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(teacher));
     setIsLoginModalOpen(false);
-
-    // If teacher belongs to a different school, auto-switch active school!
-    const targetSchoolId = teacher.schoolId || DEFAULT_PRIMARY_SCHOOL_ID;
-    if (targetSchoolId !== currentSchoolId) {
-      handleSelectSchool(targetSchoolId);
-    }
 
     addToast(
       'Login Berhasil',
@@ -750,7 +668,7 @@ export default function App() {
 
     const newTeacher: Teacher = {
       ...newTeacherData,
-      schoolId: currentSchoolId,
+      schoolId: DEFAULT_PRIMARY_SCHOOL_ID,
       id: `tch-${Date.now()}`,
     };
 
@@ -1219,7 +1137,7 @@ export default function App() {
     const newStudent: Student = {
       ...newStudentData,
       id: uniqueId,
-      schoolId: currentSchoolId,
+      schoolId: DEFAULT_PRIMARY_SCHOOL_ID,
       createdAt: getTodayDateString(),
     };
     setStudents((prev) => [...prev, newStudent]);
@@ -1233,17 +1151,13 @@ export default function App() {
     const timestamp = Date.now();
     const preparedStudents = newStudentsList.map((s, idx) => ({
       ...s,
-      schoolId: s.schoolId || currentSchoolId,
+      schoolId: DEFAULT_PRIMARY_SCHOOL_ID,
       id: s.id && s.id.length > 5 ? s.id : `std-${timestamp}-${idx}-${Math.random().toString(36).substring(2, 8)}`,
       createdAt: s.createdAt || getTodayDateString(),
     }));
 
     setStudents((prev) => {
-      // Check duplicate NIS only within the current active school
-      const currentSchoolStudents = prev.filter(
-        (p) => (!p.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || p.schoolId === currentSchoolId
-      );
-      const existingNisMap = new Set(currentSchoolStudents.map((p) => p.nis.trim()));
+      const existingNisMap = new Set(prev.map((p) => p.nis.trim()));
       const filteredNew = preparedStudents.filter((s) => !existingNisMap.has(s.nis.trim()));
       const updated = [...prev, ...filteredNew];
       syncAllStudentsToFirestore(filteredNew).catch((err) =>
@@ -1299,41 +1213,23 @@ export default function App() {
     addToast('Siswa Dihapus', `${ids.length} siswa berhasil dihapus secara permanen.`, 'info');
   };
 
-  // Reset data for current school only
+  // Reset data for the school
   const handleResetData = () => {
-    if (currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) {
-      const resetStudents = [
-        ...INITIAL_STUDENTS,
-        ...students.filter((s) => s.schoolId && s.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
-      ];
-      const resetTeachers = [
-        ...INITIAL_TEACHERS,
-        ...teachers.filter((t) => t.schoolId && t.schoolId !== DEFAULT_PRIMARY_SCHOOL_ID),
-      ];
-      setStudents(resetStudents);
-      setTeachers(resetTeachers);
-      setCurrentTeacher(INITIAL_TEACHERS[0]);
-      setSettings(DEFAULT_SETTINGS);
-      safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(resetStudents));
-      safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(resetTeachers));
-      safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
-      saveSettingsToFirestore(DEFAULT_SETTINGS, DEFAULT_PRIMARY_SCHOOL_ID).catch((e) => console.warn(e));
-    } else {
-      // Clear data for this school only
-      setStudents((prev) => {
-        const updated = prev.filter((s) => s.schoolId !== currentSchoolId);
-        safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
-        return updated;
-      });
-      setAttendanceRecords((prev) => {
-        const updated = prev.filter((r) => r.schoolId !== currentSchoolId);
-        safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(updated));
-        return updated;
-      });
-      setScheduledLeaves((prev) => prev.filter((l) => l.schoolId !== currentSchoolId));
-      setBehaviorLogs((prev) => prev.filter((b) => b.schoolId !== currentSchoolId));
-    }
-    addToast('Reset Berhasil', 'Data sekolah saat ini berhasil direset.', 'info');
+    setStudents(INITIAL_STUDENTS);
+    setTeachers(INITIAL_TEACHERS);
+    setCurrentTeacher(INITIAL_TEACHERS[0]);
+    setSettings(DEFAULT_SETTINGS);
+    setAttendanceRecords([]);
+    setScheduledLeaves([]);
+    setBehaviorLogs([]);
+    safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
+    safeSetItem(LOCAL_STORAGE_KEYS.TEACHERS, JSON.stringify(INITIAL_TEACHERS));
+    safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+    safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
+    safeSetItem(LOCAL_STORAGE_KEYS.LEAVES, JSON.stringify([]));
+    safeSetItem(LOCAL_STORAGE_KEYS.BEHAVIOR_LOGS, JSON.stringify([]));
+    saveSettingsToFirestore(DEFAULT_SETTINGS, DEFAULT_PRIMARY_SCHOOL_ID).catch((e) => console.warn(e));
+    addToast('Reset Berhasil', 'Semua data sekolah berhasil direset ke data awal.', 'info');
   };
 
   // Restore Data Handler for Cloud Sync / JSON File Import
@@ -1344,33 +1240,9 @@ export default function App() {
     teachers: Teacher[];
     schools?: School[];
   }) => {
-    // 1. If backup contains schools array, merge them
-    if (restored.schools && Array.isArray(restored.schools) && restored.schools.length > 0) {
-      setSchools((prev) => {
-        const schoolMap = new Map<string, School>();
-        prev.forEach((s) => schoolMap.set(s.id, s));
-        restored.schools!.forEach((s) => schoolMap.set(s.id, s));
-        INITIAL_SCHOOLS.forEach((s) => {
-          if (!schoolMap.has(s.id)) schoolMap.set(s.id, s);
-        });
-        const merged = Array.from(schoolMap.values());
-        safeSetItem(LOCAL_STORAGE_KEYS.SCHOOLS, JSON.stringify(merged));
-        return merged;
-      });
-      restored.schools.forEach((s) => {
-        saveSchoolToFirestore(s).catch(console.warn);
-      });
-    }
+    const targetSchoolId = DEFAULT_PRIMARY_SCHOOL_ID;
 
-    const targetSchoolId = restored.settings?.schoolId || currentSchoolId || DEFAULT_PRIMARY_SCHOOL_ID;
-
-    // Ensure active view switches to target school
-    if (targetSchoolId && targetSchoolId !== currentSchoolId) {
-      setCurrentSchoolId(targetSchoolId);
-      safeSetItem(LOCAL_STORAGE_KEYS.CURRENT_SCHOOL_ID, targetSchoolId);
-    }
-
-    // 2. Normalize all items with consistent IDs and schoolId
+    // Normalize all items with consistent IDs and schoolId
     const seenStudentIds = new Set<string>();
     const normStudents: Student[] = (restored.students || []).map((s, idx) => {
       let id = s.id && typeof s.id === 'string' && s.id.trim() !== ''
@@ -1383,7 +1255,7 @@ export default function App() {
       return {
         ...s,
         id,
-        schoolId: s.schoolId || targetSchoolId,
+        schoolId: targetSchoolId,
       };
     });
 
@@ -1399,7 +1271,7 @@ export default function App() {
       return {
         ...t,
         id,
-        schoolId: t.schoolId || targetSchoolId,
+        schoolId: targetSchoolId,
       };
     });
 
@@ -1408,7 +1280,7 @@ export default function App() {
       id: r.id && typeof r.id === 'string' && r.id.trim() !== ''
         ? r.id.trim()
         : `att-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-      schoolId: r.schoolId || targetSchoolId,
+      schoolId: targetSchoolId,
     }));
 
     const normSettings: SystemSettings = {
@@ -1416,11 +1288,10 @@ export default function App() {
       schoolId: targetSchoolId,
     };
 
-    // 3. Merge data cleanly without dropping records
+    // Merge data cleanly into single school state
     setStudents((prev) => {
-      const otherStudents = prev.filter((s) => s.schoolId && s.schoolId !== targetSchoolId);
       const studentMap = new Map<string, Student>();
-      otherStudents.forEach((s) => studentMap.set(s.id, s));
+      prev.forEach((s) => studentMap.set(s.id, s));
       normStudents.forEach((s) => studentMap.set(s.id, s));
       const merged = Array.from(studentMap.values());
       safeSetItem(LOCAL_STORAGE_KEYS.STUDENTS, JSON.stringify(merged));
@@ -1428,10 +1299,8 @@ export default function App() {
     });
 
     setTeachers((prev) => {
-      const otherTeachers = prev.filter((t) => t.schoolId && t.schoolId !== targetSchoolId && t.id !== 'tch-admin');
       const teacherMap = new Map<string, Teacher>();
-      otherTeachers.forEach((t) => teacherMap.set(t.id, t));
-      // Always guarantee super admin is present
+      prev.forEach((t) => teacherMap.set(t.id, t));
       teacherMap.set(INITIAL_TEACHERS[0].id, { ...INITIAL_TEACHERS[0], pin: 'Hanin231221' });
       normTeachers.forEach((t) => teacherMap.set(t.id, t));
       const merged = Array.from(teacherMap.values());
@@ -1440,9 +1309,8 @@ export default function App() {
     });
 
     setAttendanceRecords((prev) => {
-      const otherRecords = prev.filter((r) => r.schoolId && r.schoolId !== targetSchoolId);
       const attMap = new Map<string, AttendanceRecord>();
-      otherRecords.forEach((r) => attMap.set(r.id, r));
+      prev.forEach((r) => attMap.set(r.id, r));
       normAttendance.forEach((r) => attMap.set(r.id, r));
       const merged = Array.from(attMap.values());
       safeSetItem(LOCAL_STORAGE_KEYS.ATTENDANCE, JSON.stringify(merged));
@@ -1452,7 +1320,7 @@ export default function App() {
     setSettings(normSettings);
     safeSetItem(LOCAL_STORAGE_KEYS.SETTINGS, JSON.stringify(normSettings));
 
-    // 4. Batch-sync to Firestore in the background
+    // Batch-sync to Firestore in the background
     if (normStudents.length > 0) {
       syncAllStudentsToFirestore(normStudents).catch((e) =>
         console.warn('Firestore restore students sync warning:', e)
@@ -1475,33 +1343,14 @@ export default function App() {
     }
   };
 
-  // Multi-School Scoped Data:
-  // For backwards-compatibility, any existing record without schoolId belongs to DEFAULT_PRIMARY_SCHOOL_ID ('sd-inpres-2-ulatan')
-  const currentSchool = schools.find((s) => s.id === currentSchoolId) || schools[0] || INITIAL_SCHOOLS[0];
+  // Single School Scoped Data (Semua data terpusat untuk 1 sekolah - SD Inpres 2 Ulatan):
+  const effectiveStudents = students;
+  const effectiveAttendance = attendanceRecords;
+  const effectiveTeachers = teachers;
+  const effectiveLeaves = scheduledLeaves;
+  const effectiveBehaviorLogs = behaviorLogs;
 
-  const filteredStudents = students.filter(
-    (s) => (!s.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || s.schoolId === currentSchoolId
-  );
-
-  const filteredAttendanceRecords = attendanceRecords.filter(
-    (r) => (!r.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || r.schoolId === currentSchoolId
-  );
-
-  const filteredTeachers = teachers.filter(
-    (t) => (!t.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || t.schoolId === currentSchoolId
-  );
-
-  const effectiveTeachers = filteredTeachers;
-
-  const filteredLeaves = scheduledLeaves.filter(
-    (l) => (!l.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || l.schoolId === currentSchoolId
-  );
-
-  const filteredBehaviorLogs = behaviorLogs.filter(
-    (b) => (!b.schoolId && currentSchoolId === DEFAULT_PRIMARY_SCHOOL_ID) || b.schoolId === currentSchoolId
-  );
-
-  const todayCount = filteredAttendanceRecords.filter((r) => r.date === todayStr).length;
+  const todayCount = effectiveAttendance.filter((r) => r.date === todayStr).length;
 
   return (
     <ErrorBoundary fallbackTitle="Terjadi Kendala pada Aplikasi Utama">
@@ -1522,7 +1371,6 @@ export default function App() {
           onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
           onOpenAnnouncement={handleOpenAnnouncement}
           onOpenERaporSync={() => setIsERaporSyncModalOpen(true)}
-          onOpenSchoolManagement={isSuperAdmin ? () => setIsSchoolModalOpen(true) : undefined}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
@@ -1534,9 +1382,7 @@ export default function App() {
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
-            currentSchoolName={currentSchool.name}
-            isSuperAdmin={isSuperAdmin}
-            onOpenSchoolManagement={isSuperAdmin ? () => setIsSchoolModalOpen(true) : undefined}
+            currentSchoolName={settings.schoolName || 'SD INPRES 2 ULATAN'}
           />
 
           {/* Toast Notifications */}
@@ -1547,10 +1393,10 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <ErrorBoundary fallbackTitle="Terjadi Kendala pada Dashboard Rekap">
               <DashboardTab
-                students={filteredStudents}
-                attendanceRecords={filteredAttendanceRecords}
-                scheduledLeaves={filteredLeaves}
-                behaviorLogs={filteredBehaviorLogs}
+                students={effectiveStudents}
+                attendanceRecords={effectiveAttendance}
+                scheduledLeaves={effectiveLeaves}
+                behaviorLogs={effectiveBehaviorLogs}
                 selectedDate={selectedDate}
                 setSelectedDate={setSelectedDate}
                 settings={settings}
@@ -1571,8 +1417,8 @@ export default function App() {
           {activeTab === 'scanner' && (
             <ErrorBoundary fallbackTitle="Terjadi Kendala pada Pemindai QR Camera">
               <ScannerTab
-                students={filteredStudents}
-                attendanceRecords={filteredAttendanceRecords}
+                students={effectiveStudents}
+                attendanceRecords={effectiveAttendance}
                 settings={settings}
                 teachers={effectiveTeachers}
                 currentTeacher={currentTeacher}
@@ -1590,12 +1436,12 @@ export default function App() {
           {activeTab === 'students' && (
             <ErrorBoundary fallbackTitle="Terjadi Kendala pada Kelola Data Siswa">
               <StudentsTab
-                students={filteredStudents}
+                students={effectiveStudents}
                 settings={settings}
                 currentTeacher={currentTeacher}
                 teachers={effectiveTeachers}
-                scheduledLeaves={filteredLeaves}
-                behaviorLogs={filteredBehaviorLogs}
+                scheduledLeaves={effectiveLeaves}
+                behaviorLogs={effectiveBehaviorLogs}
                 onAddStudent={handleAddStudent}
                 onAddBulkStudents={handleAddBulkStudents}
                 onUpdateStudent={handleUpdateStudent}
@@ -1613,8 +1459,8 @@ export default function App() {
           {activeTab === 'simulator' && (
             <ErrorBoundary fallbackTitle="Terjadi Kendala pada Pengaturan & Simulasi">
               <SimulatorTab
-                students={filteredStudents}
-                attendanceRecords={filteredAttendanceRecords}
+                students={effectiveStudents}
+                attendanceRecords={effectiveAttendance}
                 settings={settings}
                 currentTeacher={currentTeacher}
                 isDarkMode={isDarkMode}
@@ -1677,8 +1523,8 @@ export default function App() {
         {/* Cloud Sync & Export Modal */}
         {isCloudSyncModalOpen && (
           <CloudSyncModal
-            students={filteredStudents}
-            attendanceRecords={filteredAttendanceRecords}
+            students={effectiveStudents}
+            attendanceRecords={effectiveAttendance}
             settings={settings}
             teachers={effectiveTeachers}
             schools={schools}
@@ -1707,29 +1553,12 @@ export default function App() {
           <ERaporSyncModal
             isOpen={isERaporSyncModalOpen}
             onClose={() => setIsERaporSyncModalOpen(false)}
-            students={filteredStudents}
-            attendanceRecords={filteredAttendanceRecords}
-            scheduledLeaves={filteredLeaves}
+            students={effectiveStudents}
+            attendanceRecords={effectiveAttendance}
+            scheduledLeaves={effectiveLeaves}
             settings={settings}
             currentTeacher={currentTeacher}
             onSuccessToast={(title, msg) => addToast(title, msg, 'success')}
-          />
-        )}
-
-        {/* School Management Modal (Multi-Sekolah Super Admin Khusus fadli46046@gmail.com) */}
-        {isSchoolModalOpen && isSuperAdmin && (
-          <SchoolManagementModal
-            isOpen={isSchoolModalOpen}
-            onClose={() => setIsSchoolModalOpen(false)}
-            schools={schools}
-            currentSchoolId={currentSchoolId}
-            onSelectSchool={handleSelectSchool}
-            onSaveSchool={handleSaveSchool}
-            onSaveSchoolAdmin={handleSaveSchoolAdmin}
-            onDeleteSchool={handleDeleteSchool}
-            students={students}
-            teachers={teachers}
-            onShowToast={addToast}
           />
         )}
 

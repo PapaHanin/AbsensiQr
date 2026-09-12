@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Teacher, TeacherType, isSuperAdminEmail, SUPER_ADMIN_EMAIL } from '../types';
+import { Teacher, TeacherType } from '../types';
 import { SD_CLASSES } from '../data/initialData';
 
 interface TeacherManagementModalProps {
@@ -30,8 +30,6 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [formError, setFormError] = useState('');
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
-
-  const isCurrentSuperAdmin = isSuperAdminEmail(currentTeacher?.email);
 
   // Start editing a specific teacher / admin
   const handleStartEdit = (teacher: Teacher) => {
@@ -69,12 +67,6 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPin = pin.trim() || '1234';
-
-    // Prevent non-super-admins from setting the email to super admin email
-    if (!isCurrentSuperAdmin && cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      setFormError(`Email "${SUPER_ADMIN_EMAIL}" adalah hak khusus Super Administrator Pusat.`);
-      return;
-    }
 
     if (cleanPin.length < 4) {
       setFormError('PIN Keamanan login guru minimal terdiri dari 4 karakter / angka.');
@@ -263,11 +255,6 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500"
                 />
-                {!isCurrentSuperAdmin && (
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Gunakan email guru sekolah (bukan email super admin pusat).
-                  </p>
-                )}
               </div>
 
               <div>
@@ -476,7 +463,8 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredTeachers.map((t) => {
+                  {filteredTeachers.length > 0 ? (
+                    filteredTeachers.map((t) => {
                     const isCurrent = currentTeacher?.id === t.id;
                     const isEditing = editingTeacherId === t.id;
                     const isWali = t.teacherType === 'wali_kelas' || Boolean(t.homeroomClass);
@@ -568,7 +556,28 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <i className="fa-solid fa-users-slash text-2xl text-slate-300"></i>
+                          <p className="font-bold text-xs text-slate-700">
+                            {searchQuery ? `Tidak ada guru cocok dengan "${searchQuery}"` : 'Belum ada data guru tersimpan'}
+                          </p>
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setSearchQuery('')}
+                              className="text-[11px] text-indigo-600 hover:underline font-bold"
+                            >
+                              Reset Pencarian
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

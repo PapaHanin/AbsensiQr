@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActiveTab, SystemSettings, Teacher, isSuperAdminEmail } from '../types';
+import { ActiveTab, SystemSettings, Teacher } from '../types';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -15,7 +15,6 @@ interface SidebarProps {
   onOpenGuide?: () => void;
   onOpenAnnouncement?: () => void;
   onOpenERaporSync?: () => void;
-  onOpenSchoolManagement?: () => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -34,7 +33,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGuide,
   onOpenAnnouncement,
   onOpenERaporSync,
-  onOpenSchoolManagement,
   isOpenMobile = false,
   onCloseMobile,
 }) => {
@@ -109,31 +107,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
         </div>
-
-        {/* Multi-School Switcher / Management Button (Khusus Super Admin fadli46046@gmail.com) */}
-        {isSuperAdminEmail(currentTeacher?.email) && onOpenSchoolManagement && (
-          <div className="pb-1">
-            <button
-              type="button"
-              onClick={() => {
-                onOpenSchoolManagement();
-                if (onCloseMobile) onCloseMobile();
-              }}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-amber-950/80 to-amber-900/60 hover:from-amber-900/90 hover:to-amber-850/80 text-amber-200 border border-amber-500/40 shadow-xs group cursor-pointer"
-              title="Kelola Daftar Sekolah Pembeli & Sistem Multi-Sekolah"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs group-hover:scale-110 transition-transform shrink-0">
-                  <i className="fa-solid fa-school-flag"></i>
-                </div>
-                <span className="truncate text-xs">Kelola Sekolah</span>
-              </div>
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 shadow-2xs shrink-0 uppercase tracking-wider">
-                Super Admin
-              </span>
-            </button>
-          </div>
-        )}
 
         {/* Section: Menu Navigasi Utama */}
         <div>

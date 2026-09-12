@@ -101,6 +101,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     return attendanceRecords;
   }, [attendanceRecords, filterMode, selectedDate, startDate, endDate, monthPicker]);
 
+  // Find the most recent date with attendance records
+  const latestRecordDate = useMemo(() => {
+    if (!attendanceRecords || attendanceRecords.length === 0) return null;
+    const sorted = [...attendanceRecords].sort((a, b) => b.date.localeCompare(a.date));
+    return sorted[0]?.date || null;
+  }, [attendanceRecords]);
+
   // Readable Date Range Label for UI and PDF Report
   const dateRangeLabel = useMemo(() => {
     if (filterMode === 'daily') {
@@ -1347,12 +1354,60 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 ) : (
                   <tr>
                     <td colSpan={filterMode !== 'daily' ? 10 : 9} className="py-12 text-center text-slate-500">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <i className="fa-solid fa-clipboard-question text-3xl text-slate-300"></i>
-                        <p className="font-bold text-sm text-slate-700">Tidak ada data absensi ditemukan</p>
-                        <p className="text-xs text-slate-500">
-                          Gunakan tab Scanner QR untuk melakukan pemindaian atau ubah filter tanggal/pencarian.
-                        </p>
+                      <div className="flex flex-col items-center justify-center gap-3 max-w-md mx-auto px-4">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xl">
+                          <i className="fa-solid fa-clipboard-question"></i>
+                        </div>
+                        <div>
+                          <p className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+                            {searchTerm
+                              ? `Tidak ada data presensi cocok dengan "${searchTerm}"`
+                              : filterMode === 'daily'
+                              ? `Presensi untuk ${dateRangeLabel} belum direkam`
+                              : 'Tidak ada data presensi untuk periode ini'}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            {searchTerm
+                              ? 'Coba periksa kembali ejaan nama atau NIS siswa yang dicari.'
+                              : attendanceRecords.length > 0
+                              ? `Data presensi Anda tersimpan aman di Cloud (${attendanceRecords.length} total rekaman). Belum ada pemindaian QR untuk tanggal ini.`
+                              : 'Gunakan tab Scanner QR untuk melakukan pemindaian presensi siswa.'}
+                          </p>
+                        </div>
+
+                        {/* Quick action recovery buttons */}
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                          {searchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => setSearchTerm('')}
+                              className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                            >
+                              <i className="fa-solid fa-rotate-left mr-1.5"></i>
+                              Reset Pencarian
+                            </button>
+                          )}
+                          {latestRecordDate && latestRecordDate !== selectedDate && filterMode === 'daily' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDate(latestRecordDate)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                            >
+                              <i className="fa-solid fa-calendar-day"></i>
+                              <span>Buka Presensi Terakhir ({latestRecordDate})</span>
+                            </button>
+                          )}
+                          {attendanceRecords.length > 0 && filterMode === 'daily' && (
+                            <button
+                              type="button"
+                              onClick={() => setFilterMode('monthly')}
+                              className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <i className="fa-solid fa-calendar-days"></i>
+                              <span>Lihat Rekap Bulan Ini</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
