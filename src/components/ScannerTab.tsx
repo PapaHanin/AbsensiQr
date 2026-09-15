@@ -448,7 +448,7 @@ export const ScannerTab: React.FC<ScannerTabProps> = ({
                     </span>
                   </span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                    Silakan pilih nama Anda atau masuk melalui menu di bilah samping agar nama Anda tercatat sebagai guru pengabsen.
+                    Silakan masuk menggunakan Email dan PIN masing-masing agar nama Anda tercatat sebagai guru pengabsen.
                   </span>
                 </div>
               </div>

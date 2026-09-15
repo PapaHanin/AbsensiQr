@@ -531,64 +531,6 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         {/* TAB 3: RESTORE DATA */}
         {activeTab === 'restore' && (
           <div className="space-y-4">
-            {/* Quick Restore SDK Ogomojolo Banner */}
-            <div className="p-3.5 bg-linear-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-base font-bold shrink-0 shadow-xs">
-                  <i className="fa-solid fa-clock-rotate-left"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-black text-emerald-950">
-                      Cadangan SDK Ogomojolo Ditemukan!
-                    </h4>
-                    <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-mono">
-                      SD-3NGT6
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-emerald-800 mt-0.5 leading-snug">
-                    Tersedia cadangan awan lengkap <strong>132 Siswa</strong>, <strong>9 Guru</strong>, dan profil <strong>SDN KECIL OGOMOJOLO</strong>.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={isLoadingCloud}
-                    onClick={async () => {
-                      setInputSyncCode('SD-3NGT6');
-                      setIsLoadingCloud(true);
-                      const result = await fetchFromCloudSync('SD-3NGT6');
-                      setIsLoadingCloud(false);
-                      if (result.success && result.payload) {
-                        if (
-                          confirm(
-                            `Pulihkan seluruh data SDK Ogomojolo (${result.payload.students.length} Siswa, ${result.payload.teachers.length} Guru, dan Pengaturan Sekolah)?`
-                          )
-                        ) {
-                          onRestoreData({
-                            students: result.payload.students,
-                            attendanceRecords: result.payload.attendanceRecords,
-                            settings: result.payload.settings || settings,
-                            teachers: result.payload.teachers || teachers,
-                          });
-                          safeSetItem('absensi_active_sync_code', 'SD-3NGT6');
-                          safeSetItem('absensi_last_cloud_sync_time', result.payload.lastSyncedAt);
-                          setSyncCode('SD-3NGT6');
-                          setLastSyncTime(result.payload.lastSyncedAt);
-                          onShowToast('Data Ogomojolo Berhasil Dipulihkan!', `Berhasil mengembalikan 132 data siswa dan profil SDN Kecil Ogomojolo.`, 'success');
-                          onClose();
-                        }
-                      } else {
-                        onShowToast('Gagal Memulihkan', result.message, 'error');
-                      }
-                    }}
-                    className="mt-2.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all disabled:opacity-50"
-                  >
-                    <i className={`fa-solid ${isLoadingCloud ? 'fa-spinner fa-spin' : 'fa-rotate-left'}`}></i>
-                    <span>{isLoadingCloud ? 'Memulihkan...' : 'Klik untuk Pulihkan Data Ogomojolo'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {/* Restore via Sync Code */}
             <form onSubmit={handleLoadFromCloud} className="space-y-2">
               <label className="block text-xs font-bold text-slate-700">

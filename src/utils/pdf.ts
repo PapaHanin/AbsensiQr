@@ -266,6 +266,7 @@ export const generateAttendancePDFReport = ({
 };
 
 export interface MonthlyStudentRecapItem {
+  studentId?: string;
   nis: string;
   name: string;
   classRoom: string;
@@ -284,12 +285,17 @@ export interface MonthlyPDFReportOptions {
   monthLabel: string;
   selectedClass: string;
   settings: SystemSettings;
+  effectiveSchoolDays?: number;
   homeroomTeacher?: {
     name?: string;
     nip?: string;
     classLabel?: string;
   };
   headmaster?: {
+    name?: string;
+    nip?: string;
+  };
+  adminTeacher?: {
     name?: string;
     nip?: string;
   };
@@ -305,8 +311,10 @@ export const generateMonthlyAttendancePDFReport = ({
   monthLabel,
   selectedClass,
   settings,
+  effectiveSchoolDays,
   homeroomTeacher,
   headmaster,
+  adminTeacher,
   signatureDate,
 }: MonthlyPDFReportOptions) => {
   const doc = new jsPDF({
@@ -338,7 +346,7 @@ export const generateMonthlyAttendancePDFReport = ({
   doc.setFontSize(8);
   doc.setTextColor(203, 213, 225); // slate-300
   doc.text(
-    settings.schoolAddress || 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi Republik Indonesia',
+    settings.schoolAddress || 'Desa Ulatan, Kec. Palasa, Kab. Parigi Moutong, Sulawesi Tengah',
     pageWidth / 2,
     20,
     { align: 'center' }
@@ -360,9 +368,13 @@ export const generateMonthlyAttendancePDFReport = ({
   const totalSakit = recaps.reduce((sum, r) => sum + r.sakit, 0);
   const totalIzin = recaps.reduce((sum, r) => sum + r.izin, 0);
   const totalAlpa = recaps.reduce((sum, r) => sum + r.alpa, 0);
+  const totalMasuk = recaps.reduce((sum, r) => sum + r.totalHadir, 0);
 
   const rightX = pageWidth - 14;
   doc.setFontSize(9);
+  if (effectiveSchoolDays) {
+    doc.text(`Hari Efektif Sekolah: ${effectiveSchoolDays} Hari (Seragam)`, rightX, startY, { align: 'right' });
+  }
   doc.text(
     `Akumulasi Kelas: Hadir: ${totalHadir} | Terlambat: ${totalTerlambat} | Sakit: ${totalSakit} | Izin: ${totalIzin} | Alfa: ${totalAlpa}`,
     rightX,
@@ -420,7 +432,7 @@ export const generateMonthlyAttendancePDFReport = ({
     `${totalSakit} hr`,
     `${totalIzin} hr`,
     `${totalAlpa} hr`,
-    `${totalHadir + totalTerlambat} hr`,
+    `${totalMasuk} hr`,
     '-',
   ]);
 
@@ -507,13 +519,16 @@ export const generateMonthlyAttendancePDFReport = ({
   const city = settings.schoolCity || 'Kota';
   const locationDateStr = `${city}, ${dateFormatted}`;
 
-  // Left column: Wali Kelas
+  // Left column: Wali Kelas or Admin Koordinator
   const leftX = 25;
-  const waliTitle =
-    homeroomTeacher?.classLabel ||
-    (selectedClass !== 'Semua' ? `Wali Kelas ${selectedClass}` : 'Wali Kelas / Koordinator Presensi');
-  const waliName = homeroomTeacher?.name?.trim() || '( ........................................ )';
-  const waliNip = formatCleanNIP(homeroomTeacher?.nip);
+  const isAllClasses = selectedClass === 'Semua';
+  const waliTitle = isAllClasses
+    ? 'Koordinator Presensi / Tenaga Administrasi'
+    : (homeroomTeacher?.classLabel || `Wali Kelas ${selectedClass}`);
+  const waliName = isAllClasses
+    ? (adminTeacher?.name?.trim() || 'MOH. FADLI')
+    : (homeroomTeacher?.name?.trim() || '( ........................................ )');
+  const waliNip = formatCleanNIP(isAllClasses ? (adminTeacher?.nip || '199903202025211020') : homeroomTeacher?.nip);
 
   doc.setFont('helvetica', 'normal');
   doc.text('Mengetahui,', leftX, sigY + 4);

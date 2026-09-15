@@ -19,6 +19,11 @@ export interface School {
   isActive: boolean;
   createdAt: string;
   notes?: string;
+  nss?: string; // e.g. "101180816027"
+  npsn?: string; // e.g. "40206214"
+  headmasterCount?: number;
+  teacherCount?: number;
+  staffCount?: number;
 }
 
 export interface Student {
@@ -84,6 +89,11 @@ export interface SystemSettings {
   announcementVersion?: string;
   announcementDate?: string;
   announcementActive?: boolean;
+  nss?: string; // e.g. "101180816027"
+  npsn?: string; // e.g. "40206214"
+  headmasterCount?: number;
+  teacherCount?: number;
+  staffCount?: number;
 }
 
 export interface QRPayload {
@@ -118,10 +128,17 @@ export interface Teacher {
   email: string;
   pin?: string; // 4-6 digit login PIN for teachers/school admin
   nip?: string;
+  nuptk?: string; // e.g. "1536 7636 6520 0023"
+  pangkatGol?: string; // e.g. "Penata Tkt.I , III/d", "Penata Muda Tkt.I , III/b", "IX"
+  address?: string; // e.g. "Palasa Tengah", "Jl. Trans Sulawesi"
+  distanceFromSchool?: string; // e.g. "3.000 M", "500 M"
+  employmentStatus?: 'PNS' | 'PPPK' | 'Honorer' | 'GTT' | 'PTT';
   subject: string; // e.g. "IPA", "Matematika", "Bahasa Indonesia", "Kurikulum & Administrasi"
   role: 'admin' | 'guru';
   teacherType: TeacherType;
   homeroomClass?: string; // e.g. "Kelas 1", "Kelas 2" (wajib diisi untuk wali_kelas)
+  inTime?: string; // Jam masuk default e.g. "7.00"
+  outTime?: string; // Jam keluar default e.g. "12.00"
 }
 
 export type LeaveType = 'Izin' | 'Sakit' | 'Dispensasi';

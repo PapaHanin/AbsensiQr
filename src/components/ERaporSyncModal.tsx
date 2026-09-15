@@ -408,7 +408,7 @@ export const ERaporSyncModal: React.FC<ERaporSyncModalProps> = ({
 
       const targetMsg = res.isConnectedToIIHBeres
         ? `ke database e-Rapor (${res.destinationDb}) serta database lokal SD Inpres 2 Ulatan`
-        : `ke database mandiri SD Inpres 2 Ulatan (koneksi lama Ogomojolo diputuskan)`;
+        : `ke database mandiri SD Inpres 2 Ulatan`;
 
       setSyncSuccessMessage(
         `Berhasil mengirim rekap absensi (${res.count} siswa) & data profil siswa (${res.studentCount} siswa) ${targetMsg}! Disimpan di koleksi 'rekap_absensi_ulatan', 'students', dan 'data_siswa' (ID Dokumen: NISN Siswa).`
@@ -511,7 +511,7 @@ export const ERaporSyncModal: React.FC<ERaporSyncModalProps> = ({
                   iihh Beres
                 </span>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-mono">
-                  rekap_absensi_ogomojolo
+                  rekap_absensi_ulatan
                 </span>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-teal-950/80 text-teal-300 border border-teal-500/30 font-mono">
                   data_siswa / students
@@ -747,7 +747,7 @@ export const ERaporSyncModal: React.FC<ERaporSyncModalProps> = ({
                 </>
               ) : (
                 <>
-                  <strong>Database Ogomojolo Diputuskan:</strong> Data tersimpan aman di database mandiri SD Inpres 2 Ulatan (koleksi{' '}
+                  <strong>Database Mandiri SD Inpres 2 Ulatan:</strong> Data tersimpan aman di database mandiri SD Inpres 2 Ulatan (koleksi{' '}
                   <code className="bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded font-mono font-bold text-amber-800 dark:text-amber-300">
                     rekap_absensi_ulatan
                   </code>
@@ -891,7 +891,7 @@ export const ERaporSyncModal: React.FC<ERaporSyncModalProps> = ({
               </div>
               {cloudRecords.length === 0 ? (
                 <p className="text-xs text-slate-500 italic">
-                  Belum ada dokumen yang tersimpan di koleksi `rekap_absensi_ogomojolo`. Silakan klik tombol &quot;Kirim Rekap & Data Siswa ke e-Rapor&quot; untuk mengunggah.
+                  Belum ada dokumen yang tersimpan di koleksi `rekap_absensi_ulatan`. Silakan klik tombol &quot;Kirim Rekap & Data Siswa ke e-Rapor&quot; untuk mengunggah.
                 </p>
               ) : (
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
@@ -1140,7 +1140,7 @@ export const ERaporSyncModal: React.FC<ERaporSyncModalProps> = ({
             <span>
               Target Database:{' '}
               <strong className="text-slate-800 dark:text-slate-200 font-mono">
-                {configuredTargetDbId || 'SD Inpres 2 Ulatan (Lokal Cloud - Terputus dari Ogomojolo)'}
+                {configuredTargetDbId || 'SD Inpres 2 Ulatan (Lokal Cloud Firestore)'}
               </strong>{' '}
               | ID Dokumen: NISN Siswa.
             </span>

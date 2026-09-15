@@ -49,7 +49,6 @@ export const COLLECTIONS = {
   LEAVES: 'leaves',
   BEHAVIOR_LOGS: 'behavior_logs',
   REKAP_ABSENSI_ULATAN: 'rekap_absensi_ulatan',
-  REKAP_ABSENSI_OGOMOJOLO: 'rekap_absensi_ulatan', // alias pointing to Ulatan collection
 };
 
 /**
@@ -618,8 +617,8 @@ export async function seedInitialFirestoreDataIfEmpty(
 }
 
 /**
- * Generates an idempotent, valid document ID for rekap_absensi_ogomojolo using student's NISN.
- * As requested: "simpan dokumen ke koleksi 'rekap_absensi_ogomojolo' dengan ID dokumen = NISN siswa"
+ * Generates an idempotent, valid document ID for rekap_absensi_ulatan using student's NISN.
+ * Stores document in 'rekap_absensi_ulatan' with document ID = NISN siswa.
  */
 export function generateERaporDocId(nisn: string, semester?: number, tahunAjaran?: string): string {
   const cleanNisn = (nisn || '').trim();

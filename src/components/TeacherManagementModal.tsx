@@ -22,6 +22,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nip, setNip] = useState('');
+  const [nuptk, setNuptk] = useState('');
+  const [pangkatGol, setPangkatGol] = useState('');
+  const [address, setAddress] = useState('');
+  const [distanceFromSchool, setDistanceFromSchool] = useState('');
+  const [employmentStatus, setEmploymentStatus] = useState<'PNS' | 'PPPK' | 'Honorer' | 'GTT' | 'PTT'>('PNS');
+  const [inTime, setInTime] = useState('7.00');
+  const [outTime, setOutTime] = useState('12.00');
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('1234');
   const [subject, setSubject] = useState('');
@@ -37,6 +44,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
     setEditingTeacherId(teacher.id);
     setName(teacher.name);
     setNip(teacher.nip || '');
+    setNuptk(teacher.nuptk || '');
+    setPangkatGol(teacher.pangkatGol || '');
+    setAddress(teacher.address || '');
+    setDistanceFromSchool(teacher.distanceFromSchool || '');
+    setEmploymentStatus(teacher.employmentStatus || (teacher.role === 'admin' ? 'PPPK' : 'PNS'));
+    setInTime(teacher.inTime || '7.00');
+    setOutTime(teacher.outTime || '12.00');
     setEmail(teacher.email);
     setPin(teacher.pin || '1234');
     setSubject(teacher.subject);
@@ -49,6 +63,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
     setEditingTeacherId(null);
     setName('');
     setNip('');
+    setNuptk('');
+    setPangkatGol('');
+    setAddress('');
+    setDistanceFromSchool('');
+    setEmploymentStatus('PNS');
+    setInTime('7.00');
+    setOutTime('12.00');
     setEmail('');
     setPin('1234');
     setSubject('');
@@ -84,6 +105,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
         schoolId: existing?.schoolId,
         name: name.trim(),
         nip: nip.trim(),
+        nuptk: nuptk.trim(),
+        pangkatGol: pangkatGol.trim(),
+        address: address.trim(),
+        distanceFromSchool: distanceFromSchool.trim(),
+        employmentStatus,
+        inTime: inTime.trim() || '7.00',
+        outTime: outTime.trim() || '12.00',
         email: cleanEmail,
         pin: cleanPin,
         subject: subject.trim(),
@@ -97,6 +125,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
       onAddTeacher({
         name: name.trim(),
         nip: nip.trim(),
+        nuptk: nuptk.trim(),
+        pangkatGol: pangkatGol.trim(),
+        address: address.trim(),
+        distanceFromSchool: distanceFromSchool.trim(),
+        employmentStatus,
+        inTime: inTime.trim() || '7.00',
+        outTime: outTime.trim() || '12.00',
         email: cleanEmail,
         pin: cleanPin,
         subject: subject.trim(),
@@ -106,6 +141,13 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
       });
       setName('');
       setNip('');
+      setNuptk('');
+      setPangkatGol('');
+      setAddress('');
+      setDistanceFromSchool('');
+      setEmploymentStatus('PNS');
+      setInTime('7.00');
+      setOutTime('12.00');
       setEmail('');
       setPin('1234');
       setSubject('');
@@ -489,13 +531,25 @@ export const TeacherManagementModal: React.FC<TeacherManagementModalProps> = ({
                                   Anda
                                 </span>
                               )}
-                            </div>
-                            {t.nip ? (
-                              <span className="text-[10px] text-slate-500 font-mono font-normal">
-                                NIP: {t.nip}
+                              <span className="text-[9px] bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.2 rounded font-mono font-bold">
+                                {t.employmentStatus || (t.role === 'admin' ? 'PPPK' : 'PNS')}
                               </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic font-normal">NIP: -</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 font-normal">
+                              {t.nuptk && <span className="font-mono">NUPTK: {t.nuptk}</span>}
+                              {t.nip ? (
+                                <span className="font-mono">NIP: {t.nip}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">NIP: -</span>
+                              )}
+                              {t.pangkatGol && <span>Gol: {t.pangkatGol}</span>}
+                            </div>
+                            {(t.address || t.distanceFromSchool) && (
+                              <div className="text-[9px] text-slate-500 font-normal">
+                                {t.address && <span>{t.address}</span>}
+                                {t.address && t.distanceFromSchool && <span> • </span>}
+                                {t.distanceFromSchool && <span>Jarak: {t.distanceFromSchool}</span>}
+                              </div>
                             )}
                           </div>
                         </td>

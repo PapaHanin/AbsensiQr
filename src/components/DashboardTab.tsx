@@ -8,6 +8,7 @@ import { AutoAbsenteeModal } from './AutoAbsenteeModal';
 import { ScheduledLeaveModal } from './ScheduledLeaveModal';
 import { StudentBehaviorModal } from './StudentBehaviorModal';
 import { EditAttendanceModal } from './EditAttendanceModal';
+import { PrintMonthlyRecapModal } from './PrintMonthlyRecapModal';
 
 interface DashboardTabProps {
   students: Student[];
@@ -42,7 +43,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   selectedDate,
   setSelectedDate,
   settings,
-  teachers,
+  teachers = [],
   currentTeacher,
   onAddManualAttendance,
   onDeleteRecord,
@@ -65,6 +66,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('Semua');
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>('Semua');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [exportAlertMessage, setExportAlertMessage] = useState<string | null>(null);
 
   // New Features Modals State
@@ -86,6 +88,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   const [endDate, setEndDate] = useState<string>(selectedDate);
   const [monthPicker, setMonthPicker] = useState<string>(() => selectedDate.slice(0, 7));
   const [monthlyViewMode, setMonthlyViewMode] = useState<'summary' | 'logs'>('summary');
+  const [customEffectiveDays, setCustomEffectiveDays] = useState<number | null>(null);
+
+  // Active target class: strictly locked to myHomeroom for Wali Kelas, or selectedClass for Admin
+  const activeClass = isWaliKelas && myHomeroom ? myHomeroom : selectedClass;
 
   // Filter attendance by date / range / month
   const dateFilteredRecords = useMemo(() => {
@@ -100,6 +106,23 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     }
     return attendanceRecords;
   }, [attendanceRecords, filterMode, selectedDate, startDate, endDate, monthPicker]);
+
+  // Detected effective school days for the month
+  const detectedEffectiveDays = useMemo(() => {
+    const monthRecords = attendanceRecords.filter((r) => {
+      if (!r.date.startsWith(monthPicker)) return false;
+      if (activeClass !== 'Semua') {
+        return isHomeroomClassMatch(r.classRoom, activeClass) || r.classRoom === activeClass;
+      }
+      return true;
+    });
+
+    const uniqueDates = new Set(monthRecords.map((r) => r.date));
+    return uniqueDates.size > 0 ? uniqueDates.size : 20;
+  }, [attendanceRecords, monthPicker, activeClass]);
+
+  // Uniform effective school days (can be adjusted by user)
+  const effectiveSchoolDays = customEffectiveDays !== null ? customEffectiveDays : detectedEffectiveDays;
 
   // Find the most recent date with attendance records
   const latestRecordDate = useMemo(() => {
@@ -139,14 +162,14 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   // Statistics calculation
   const stats = useMemo(() => {
-    const relevantStudents = isWaliKelas && myHomeroom
-      ? students.filter((s) => isHomeroomClassMatch(s.classRoom, myHomeroom))
+    const relevantStudents = activeClass !== 'Semua'
+      ? students.filter((s) => isHomeroomClassMatch(s.classRoom, activeClass) || s.classRoom === activeClass)
       : students;
     const totalStudents = relevantStudents.length;
 
-    const relevantRecords = isWaliKelas && myHomeroom
-      ? dateFilteredRecords.filter((r) => isHomeroomClassMatch(r.classRoom, myHomeroom))
-      : (selectedClass !== 'Semua' ? dateFilteredRecords.filter((r) => isHomeroomClassMatch(r.classRoom, selectedClass) || r.classRoom === selectedClass) : dateFilteredRecords);
+    const relevantRecords = activeClass !== 'Semua'
+      ? dateFilteredRecords.filter((r) => isHomeroomClassMatch(r.classRoom, activeClass) || r.classRoom === activeClass)
+      : dateFilteredRecords;
 
     const hadir = relevantRecords.filter((r) => r.status === 'Hadir').length;
     const terlambat = relevantRecords.filter((r) => r.status === 'Terlambat').length;
@@ -156,7 +179,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     const unrecorded = Math.max(0, totalStudents - totalRecorded);
 
     return { totalStudents, hadir, terlambat, izinSakit, alpa, totalRecorded, unrecorded };
-  }, [students, dateFilteredRecords, isWaliKelas, myHomeroom, selectedClass]);
+  }, [students, dateFilteredRecords, activeClass]);
 
   // Active Leaves for today/selectedDate
   const activeLeavesCount = useMemo(() => {
@@ -171,16 +194,56 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     return ['Semua', ...Array.from(setCls).sort()];
   }, [students]);
 
-  // Teacher Attendance Activity Monitoring
+  // Relevant Teachers for Monitoring Activity:
+  // For Wali Kelas or single class filter: ONLY Wali Kelas of this class and Guru Mapel. No cross-class mixing!
+  // For Admin with 'Semua': all teachers
+  const relevantTeachersForActivity = useMemo(() => {
+    if (isAdmin && activeClass === 'Semua') {
+      return teachers;
+    }
+
+    return teachers.filter((tch) => {
+      // Always include Guru Mapel (PJOK, PAI, etc.)
+      if (tch.teacherType === 'guru_mapel') return true;
+
+      // Include Wali Kelas if class matches
+      if (tch.teacherType === 'wali_kelas' && tch.homeroomClass) {
+        return isHomeroomClassMatch(tch.homeroomClass, activeClass);
+      }
+
+      // Include Admin only if they logged attendance for this specific class
+      if (tch.teacherType === 'admin' || tch.role === 'admin') {
+        return dateFilteredRecords.some(
+          (r) =>
+            (r.teacherId === tch.id || r.teacherName?.toLowerCase().trim() === tch.name.toLowerCase().trim()) &&
+            (activeClass === 'Semua' || isHomeroomClassMatch(r.classRoom, activeClass) || r.classRoom === activeClass)
+        );
+      }
+
+      return false;
+    });
+  }, [teachers, isAdmin, activeClass, dateFilteredRecords]);
+
+  // Teacher Attendance Activity Monitoring: strict per-teacher counting
   const teacherAttendanceActivity = useMemo(() => {
-    return teachers.map((tch) => {
+    return relevantTeachersForActivity.map((tch) => {
       const byTeacher = dateFilteredRecords.filter((r) => {
-        if (r.teacherId && r.teacherId === tch.id) return true;
-        const resolved = resolveRecordTeacher(r, teachers, students, currentTeacher);
-        if (resolved.name.toLowerCase().trim() === tch.name.toLowerCase().trim()) return true;
-        if (tch.teacherType === 'wali_kelas' && tch.homeroomClass && isHomeroomClassMatch(r.classRoom, tch.homeroomClass)) {
-          return true;
+        // Scope to active class if not 'Semua'
+        if (activeClass !== 'Semua' && !isHomeroomClassMatch(r.classRoom, activeClass) && r.classRoom !== activeClass) {
+          return false;
         }
+
+        // 1. Direct ID match
+        if (r.teacherId && r.teacherId === tch.id) return true;
+
+        // 2. Direct Name match
+        if (r.teacherName && tch.name && r.teacherName.toLowerCase().trim() === tch.name.toLowerCase().trim()) return true;
+
+        // 3. Fallback: unassigned records default to homeroom teacher ONLY if tch is this class's Wali Kelas
+        if (!r.teacherId && !r.teacherName && tch.teacherType === 'wali_kelas' && tch.homeroomClass) {
+          return isHomeroomClassMatch(r.classRoom, tch.homeroomClass);
+        }
+
         return false;
       });
 
@@ -198,7 +261,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         isDone: count > 0,
       };
     });
-  }, [teachers, dateFilteredRecords, students, currentTeacher]);
+  }, [relevantTeachersForActivity, dateFilteredRecords, activeClass]);
 
   const activeTeachersCount = useMemo(() => {
     return teacherAttendanceActivity.filter((t) => t.isDone).length;
@@ -215,10 +278,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         (rec.teacherName && rec.teacherName.toLowerCase().includes(searchTerm.toLowerCase()));
 
       let matchClass = true;
-      if (isWaliKelas && myHomeroom) {
-        matchClass = isHomeroomClassMatch(rec.classRoom, myHomeroom);
-      } else if (selectedClass !== 'Semua') {
-        matchClass = isHomeroomClassMatch(rec.classRoom, selectedClass) || rec.classRoom === selectedClass;
+      if (activeClass !== 'Semua') {
+        matchClass = isHomeroomClassMatch(rec.classRoom, activeClass) || rec.classRoom === activeClass;
       }
 
       const matchStatus = selectedStatus === 'Semua' || rec.status === selectedStatus;
@@ -234,18 +295,17 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
       return matchSearch && matchClass && matchStatus && matchTeacher;
     });
-  }, [dateFilteredRecords, searchTerm, isWaliKelas, myHomeroom, selectedClass, selectedStatus, selectedTeacherFilter, teachers, students, currentTeacher]);
+  }, [dateFilteredRecords, searchTerm, activeClass, selectedStatus, selectedTeacherFilter, teachers, students, currentTeacher]);
 
   // Per-Student Monthly Summary Breakdown: Hadir, Terlambat, Sakit, Izin, Alfa
+  // Uniform total days = effectiveSchoolDays for all students
   const monthlyStudentRecaps = useMemo(() => {
     if (filterMode !== 'monthly') return [];
 
     const classStudents = students.filter((s) => {
       let matchClass = true;
-      if (isWaliKelas && myHomeroom) {
-        matchClass = isHomeroomClassMatch(s.classRoom, myHomeroom);
-      } else if (selectedClass !== 'Semua') {
-        matchClass = isHomeroomClassMatch(s.classRoom, selectedClass) || s.classRoom === selectedClass;
+      if (activeClass !== 'Semua') {
+        matchClass = isHomeroomClassMatch(s.classRoom, activeClass) || s.classRoom === activeClass;
       }
       const matchSearch =
         !searchTerm ||
@@ -259,11 +319,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         (r) => r.date.startsWith(monthPicker) && (r.studentId === s.id || r.nis === s.nis)
       );
 
-      let hadir = recordsInMonth.filter((r) => r.status === 'Hadir').length;
-      let terlambat = recordsInMonth.filter((r) => r.status === 'Terlambat').length;
       let sakit = recordsInMonth.filter((r) => r.status === 'Sakit').length;
       let izin = recordsInMonth.filter((r) => r.status === 'Izin').length;
       let alpa = recordsInMonth.filter((r) => r.status === 'Alpa').length;
+      let terlambat = recordsInMonth.filter((r) => r.status === 'Terlambat').length;
 
       // Account for multi-day scheduled leaves
       scheduledLeaves?.forEach((leave) => {
@@ -285,9 +344,17 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         }
       });
 
-      const totalHadir = hadir + terlambat;
-      const totalHari = hadir + terlambat + sakit + izin + alpa;
-      const percentage = totalHari > 0 ? Math.round((totalHadir / totalHari) * 100) : 0;
+      // Total non-attendance absences
+      const totalAbsen = sakit + izin + alpa;
+
+      // Uniform Total Hadir:
+      // All students are evaluated against the uniform effective school days.
+      // Total Hadir = max(0, effectiveSchoolDays - totalAbsen).
+      // If 0 absences, Total Hadir is identical and uniform across all students!
+      const totalHadir = Math.max(0, effectiveSchoolDays - totalAbsen);
+      const hadir = Math.max(0, totalHadir - terlambat);
+      const totalHari = effectiveSchoolDays;
+      const percentage = effectiveSchoolDays > 0 ? Math.round((totalHadir / effectiveSchoolDays) * 100) : 0;
 
       return {
         studentId: s.id,
@@ -307,14 +374,15 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         percentage,
       };
     });
-  }, [filterMode, students, isWaliKelas, myHomeroom, selectedClass, searchTerm, monthPicker, attendanceRecords, scheduledLeaves]);
+  }, [filterMode, activeClass, students, searchTerm, attendanceRecords, monthPicker, scheduledLeaves, effectiveSchoolDays]);
 
   const handleExportPDF = () => {
-    const hrTeacher = findHomeroomTeacher(teachers, selectedClass, currentTeacher);
+    const hrTeacher = findHomeroomTeacher(teachers, activeClass, currentTeacher);
     const hm = {
       name: settings.headmasterName,
       nip: settings.headmasterNip,
     };
+    const adminTch = teachers.find((t) => t.teacherType === 'admin' || t.role === 'admin') || currentTeacher;
 
     if (filterMode === 'monthly') {
       if (!monthlyStudentRecaps || monthlyStudentRecaps.length === 0) {
@@ -324,10 +392,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       generateMonthlyAttendancePDFReport({
         recaps: monthlyStudentRecaps,
         monthLabel: dateRangeLabel,
-        selectedClass,
+        selectedClass: activeClass,
         settings,
+        effectiveSchoolDays,
         homeroomTeacher: hrTeacher,
         headmaster: hm,
+        adminTeacher: adminTch ? { name: adminTch.name, nip: adminTch.nip } : undefined,
       });
       return;
     }
@@ -340,7 +410,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     generateAttendancePDFReport({
       records: filteredTableData,
       dateRangeLabel,
-      selectedClass,
+      selectedClass: activeClass,
       settings,
       stats,
       homeroomTeacher: hrTeacher,
@@ -443,6 +513,21 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             >
               <i className="fa-solid fa-file-pdf"></i>
               <span>Unduh PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (filterMode !== 'monthly') {
+                  setFilterMode('monthly');
+                }
+                setIsPrintModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+              title="Cetak Laporan Rekapitulasi Presensi (Print Resmi)"
+            >
+              <i className="fa-solid fa-print"></i>
+              <span>Cetak Rekapan</span>
             </button>
 
             {onOpenERaporSync && (
@@ -901,21 +986,28 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           {/* Filter Dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Filter Kelas */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs">
-              <i className="fa-solid fa-graduation-cap text-indigo-600 dark:text-indigo-400 text-xs"></i>
-              <span className="font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Kelas:</span>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer"
-              >
-                {classesList.map((cls) => (
-                  <option key={cls} value={cls} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
-                    {cls === 'Semua' ? 'Semua Kelas' : `Kelas ${cls}`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isWaliKelas && myHomeroom ? (
+              <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3 py-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-bold">
+                <i className="fa-solid fa-lock text-[10px]"></i>
+                <span>Kelas: {myHomeroom} (Terkunci)</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+                <i className="fa-solid fa-graduation-cap text-indigo-600 dark:text-indigo-400 text-xs"></i>
+                <span className="font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Kelas:</span>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer"
+                >
+                  {classesList.map((cls) => (
+                    <option key={cls} value={cls} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      {cls === 'Semua' ? 'Semua Kelas' : `Kelas ${cls}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Filter Status */}
             <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs">
@@ -945,7 +1037,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 className="bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer max-w-[140px] truncate"
               >
                 <option value="Semua" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">Semua Guru</option>
-                {teachers.map((tch) => (
+                {relevantTeachersForActivity.map((tch) => (
                   <option key={tch.id} value={tch.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
                     {tch.name} ({tch.teacherType === 'wali_kelas' ? (tch.homeroomClass ? `Wali ${tch.homeroomClass}` : 'Wali Kelas') : tch.teacherType === 'guru_mapel' ? `Mapel ${tch.subject}` : 'Admin'})
                   </option>
@@ -958,11 +1050,26 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         {/* Monthly View Mode Switcher */}
         {filterMode === 'monthly' && (
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <i className="fa-solid fa-chart-pie text-indigo-600 dark:text-indigo-400"></i>
                 <span>Tampilan Rekap {dateRangeLabel}:</span>
               </span>
+
+              {/* Uniform Effective School Days Control */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-xs shadow-2xs">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Hari Efektif:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={effectiveSchoolDays}
+                  onChange={(e) => setCustomEffectiveDays(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-11 text-center font-extrabold font-mono text-emerald-600 dark:text-emerald-400 bg-slate-50 dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  title="Jumlah hari efektif sekolah seragam untuk semua siswa dalam 1 bulan"
+                />
+                <span className="text-slate-400 font-medium text-[11px]">Hari</span>
+              </div>
             </div>
             <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
               <button
@@ -989,12 +1096,21 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 <i className="fa-solid fa-clock-rotate-left text-xs"></i>
                 <span>Log Scan Harian ({filteredTableData.length})</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer border-l border-slate-200 dark:border-slate-700 ml-1 pl-2.5"
+                title="Buka Lembar Rekapan Cetak Resmi (Kop Sekolah & TTD)"
+              >
+                <i className="fa-solid fa-print text-xs"></i>
+                <span>Cetak Rekapan</span>
+              </button>
               {onOpenERaporSync && (
                 <button
                   type="button"
                   onClick={onOpenERaporSync}
-                  className="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer border-l border-slate-200 dark:border-slate-700 ml-1 pl-2.5"
-                  title="Kirim Rekap Kehadiran Siswa ke e-Rapor Merdeka (iihh Beres)"
+                  className="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer border-l border-slate-200 dark:border-slate-700 ml-1 pl-2.5"
+                  title="Kirim Rekap Kehadiran Siswa ke e-Rapor Merdeka"
                 >
                   <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
                   <span>Kirim ke e-Rapor</span>
@@ -1628,6 +1744,26 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             setEditingAttendanceRecord(null);
           }}
           onDelete={onDeleteRecord}
+        />
+      )}
+
+      {/* 5. Modal Cetak Lembar Rekapitulasi Presensi Resmi */}
+      {isPrintModalOpen && (
+        <PrintMonthlyRecapModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          recaps={monthlyStudentRecaps}
+          monthLabel={dateRangeLabel}
+          selectedClass={activeClass}
+          settings={settings}
+          effectiveSchoolDays={effectiveSchoolDays}
+          onUpdateEffectiveDays={(days) => setCustomEffectiveDays(days)}
+          homeroomTeacher={findHomeroomTeacher(teachers, activeClass, currentTeacher)}
+          headmaster={{
+            name: settings.headmasterName,
+            nip: settings.headmasterNip,
+          }}
+          adminTeacher={teachers.find((t) => t.teacherType === 'admin' || t.role === 'admin') || currentTeacher}
         />
       )}
     </div>
